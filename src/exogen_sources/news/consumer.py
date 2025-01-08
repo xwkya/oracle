@@ -30,7 +30,7 @@ class Consumer:
             model="meta-llama/Llama-3.2-1B-Instruct",
             torch_dtype=torch.bfloat16,
             device_map="auto",
-            token="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",
+            token="[token]",
         )
 
     async def consume(self, queue: asyncio.Queue):
