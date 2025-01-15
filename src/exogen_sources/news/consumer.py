@@ -1,14 +1,20 @@
+import logging
+import os
 import re
 import json
 import asyncio
+
+import sqlalchemy
 import torch
 from transformers import pipeline
 from newspaper import Article
-from sqlalchemy.orm import sessionmaker
 from datetime import datetime
 from typing import Optional, Dict
 from src.ORM.news_summary import NewsSummary
 from src.ORM.ORMWrapper import SharedORM
+from dotenv import load_dotenv
+import time
+
 
 class Consumer:
     """
@@ -24,14 +30,22 @@ class Consumer:
         """
         Initializes the consumer. Sets up the LLM pipeline and a reference to the ORM instance.
         """
+        load_dotenv()
         self.orm = orm
+        self.logger = logging.getLogger(__name__)
+        token = os.getenv("HF_TOKEN")
         self.pipe = pipeline(
             "text-generation",
-            model="meta-llama/Llama-3.2-1B-Instruct",
+            model="meta-llama/Llama-3.2-3B-Instruct",
             torch_dtype=torch.bfloat16,
-            device_map="auto",
-            token="[token]",
+            device_map="cuda:0",
+            token=token,
         )
+
+        self.logging_frequency = 10
+        self.processed = 0
+        self.time_processed = 0
+        self.logger.info("Consumer initialized")
 
     async def consume(self, queue: asyncio.Queue):
         """
@@ -45,14 +59,25 @@ class Consumer:
                 queue.task_done()
                 break
 
+            start = time.time()
             url = item["url"]
             html = item["html"]
             topic = item["topic"]
             window_end = item["window_end"]
 
             data = await self._process_article(url, html, window_end)
+            end = time.time()
             if data:
-                await self._save_to_db_async(data)
+                data["topic"] = topic
+                self.processed += 1
+                self.time_processed += end-start
+                if self.processed % self.logging_frequency == 0:
+                    self.logger.info(f"Processed {self.processed} articles. Average time: {self.time_processed/self.processed}")
+                try:
+                    await self._save_to_db_async(data)
+                except sqlalchemy.exc.ProgrammingError as e:
+                    self.logger.error(f"Error saving to DB for {url}: {e}")
+
             queue.task_done()
 
     async def _process_article(self, url: str, html: str, window_end: datetime) -> Optional[dict]:
@@ -72,42 +97,48 @@ class Consumer:
             return None
 
         news_text = article_obj.text
-        news_title = article_obj.title
 
         messages = [
             {
                 "role": "system",
                 "content": (
-                    "You are an expert news summarizer. You should summarize the news in a json "
-                    "with the following fields: Title, Author, Summary, Valid, Relevance. "
-                    "Valid is a boolean that is true if it's actually a news, false if there was "
-                    "an error and it's not a news. Relevance is a float between 0 and 1 that says "
-                    "how impactful the news is on the macro-economic context. Only output the json "
-                    "and nothing else. Your summary should be several sentences, that contain "
-                    "technical detail, facts if present, potential outcomes if present and context."
+                    "You are an expert news summarizer."
                 ),
             },
             {
                 "role": "user",
-                "content": news_text
+                "content":  "You should summarize the news in a json "
+                    "with the following fields: Title: str, Author: str, Summary: str, Valid: bool, Relevance: float "
+                    "Valid is a boolean that is true if it's actually a news, false if there was "
+                    "an issue crawling the website (cookie/firewall) or if the text is not a news. Relevance is a float between 0 and 1 that says "
+                    "how impactful the news is on the macro-economic context. Do not hesitate to give a low relevance to local news or topics that typically have low impact on economy."
+                    " Only output the json and nothing else. Your summary should be several sentences, that contain "
+                    "technical detail, facts if present, potential outcomes if present and context. The news is:\n" + news_text
             },
         ]
 
         try:
-            outputs = self.pipe(messages, max_new_tokens=1024)
+            outputs = self.pipe(messages, max_new_tokens=2048, pad_token_id=self.pipe.tokenizer.eos_token_id)
         except Exception as e:
-            print(f"LLM pipeline error for {url}: {e}")
+            self.logger.error(f"LLM pipeline error for {url}: {e}")
             return None
+
 
         if not outputs or not isinstance(outputs, list) or "generated_text" not in outputs[0]:
-            print(f"Invalid LLM output structure for {url}.")
+            self.logger.error(f"Invalid output for {url}: {outputs}")
             return None
 
-        llm_output = outputs[0]["generated_text"]
-        json_match = re.search(r"\{[\s\S]*\}", llm_output.strip())
-        if not json_match:
-            print(f"No JSON found in LLM output for {url}.")
+        try:
+            llm_output = outputs[0]["generated_text"][-1]["content"]
+            json_match = re.search(r"\{[\s\S]*\}", llm_output.strip())
+            if not json_match:
+                error_message = f"No json found for {url}: {outputs}"
+                raise Exception(error_message)
+
+        except Exception as e:
+            self.logger.error(f"LLM pipeline error for {url}: {e}")
             return None
+
 
         raw_json_str = json_match.group(0)
         try:
@@ -149,12 +180,13 @@ class Consumer:
             pk_value=pk_value,
             news_url=data["news_url"],
             website_base_url=data["website_base_url"],
+            topic=data["topic"],
             title=data["title"],
             summary=data["summary"],
             relevance=data["relevance"],
             valid=data["valid"],
             window_end_date=data["window_end_date"],
-            publish_date=data["publish_date"]
+            publish_date=data["publish_date"],
         )
 
     def _extract_website_base_url(self, url: str) -> str:

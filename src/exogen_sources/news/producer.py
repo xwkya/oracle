@@ -11,30 +11,15 @@ Producer that:
 This module should be invoked by an async task in the pipeline.
 """
 
+import time
 import asyncio
+import logging
 from datetime import datetime, timedelta
 from typing import List, Tuple
 
 from googlenewsdecoder import new_decoderv1
-from src.exogen_sources.news.news_url_getter import NewsUrlGetter
-from crawl4ai import AsyncWebCrawler, CrawlerRunConfig, CacheMode
-
-
-def decode_url(url: str):
-    """
-    Decodes a URL using new_decoderv1 synchronously.
-    Returns the decoded URL if successful, None otherwise.
-    """
-    try:
-        decoded = new_decoderv1(url)
-        if decoded.get("status"):
-            return decoded["decoded_url"]
-        else:
-            print("Error decoding URL:", decoded.get("message"))
-            return None
-    except Exception as e:
-        print(f"Error occurred while decoding {url}: {e}")
-        return None
+from src.exogen_sources.news.news_url_getter import NewsUrlGetter, NYTNewsGetter
+from crawl4ai import AsyncWebCrawler, CrawlerRunConfig, CacheMode, BrowserConfig
 
 class Producer:
     def __init__(
@@ -62,12 +47,18 @@ class Producer:
         self.window_size_days = window_size_days
         self.max_results_per_topic = max_results_per_topic
         self.language = language
+        self.logger = logging.getLogger(__name__)
+        self.headers = {
+                'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+                'Referer': 'https://www.google.com/'
+            }
 
     def _generate_windows(self) -> List[Tuple[datetime, datetime]]:
         """
         Splits the date range into consecutive windows of window_size_days.
         Returns a list of (start, end) date tuples.
         """
+        self.logger.info("Generating windows...")
         windows = []
         current_start = self.start_date
         while current_start < self.end_date:
@@ -76,6 +67,20 @@ class Producer:
                 window_end = self.end_date
             windows.append((current_start, window_end))
             current_start = window_end
+        self.logger.info(f"Generated {len(windows)} windows for {self.start_date} to {self.end_date}")
+
+        # Temporary override of windows, generate a window per month.
+        # year = self.start_date.year
+        # month = self.start_date.month
+        # while year <= self.end_date.year or (month <= self.end_date.month - 1):
+        #     window_start = datetime(year, month, 1)
+        #     month += 1
+        #     if month > 12:
+        #         month = 1
+        #         year += 1
+        #     window_end = datetime(year, month, 1)
+        #     windows.append((window_start, window_end))
+
         return windows
 
     async def produce(self, queue: asyncio.Queue):
@@ -89,14 +94,14 @@ class Producer:
             cache_mode=CacheMode.DISABLED,
             excluded_tags=['nav', 'footer', 'aside'],
             remove_overlay_elements=True,
-            remove_forms=True,
             simulate_user=True,
-            override_navigator=True,
-            magic=True,
+            delay_before_return_html=1,
+            semaphore_count=1,
         )
 
-        async with AsyncWebCrawler(verbose=False) as crawler:
+        async with AsyncWebCrawler(verbose=False, config=BrowserConfig(headers=self.headers)) as crawler:
             for (win_start, win_end) in windows:
+                self.logger.info(f"Fetching {win_start} to {win_end}...")
                 decoded_urls = []
                 url_info_map = []  # Will store (decoded_url, topic, window_end)
 
@@ -111,19 +116,24 @@ class Producer:
                     raw_urls = getter.get_news_url(topic)  # synchronous
                     for uinfo in raw_urls:
                         original_url = uinfo.url
-                        decoded = decode_url(original_url)
-                        if decoded:
-                            decoded_urls.append(decoded)
-                            url_info_map.append((decoded, topic, win_end))
+                        decoded_urls.append(original_url)
+                        url_info_map.append((original_url, topic, win_end))
+                self.logger.info(f"Fetched {len(decoded_urls)} URLs for topics {self.topics}.")
 
                 if not decoded_urls:
                     continue
+
+                self.logger.info(f"Crawling..")
+                print(decoded_urls[0])
+                time.sleep(5)
 
                 # Asynchronously fetch HTML for all decoded URLs in this window
                 results = await crawler.arun_many(
                     urls=decoded_urls,
                     config=config,
                 )
+
+                self.logger.info(f"Crawling done.")
 
                 # Place each crawled result into the queue
                 for i, r in enumerate(results):

@@ -9,13 +9,14 @@ Orchestrates the producer-consumer pattern with an async queue:
 """
 
 import asyncio
+import logging
 from datetime import datetime
 from typing import List
 
 from src.ORM.ORMWrapper import SharedORM
 from src.ORM.news_summary import NewsSummary
-from producer import Producer
-from consumer import Consumer
+from src.exogen_sources.news.producer import Producer
+from src.exogen_sources.news.consumer import Consumer
 
 class NewsPipeline:
     def __init__(
@@ -31,6 +32,8 @@ class NewsPipeline:
         """
         Initializes the pipeline with producer, consumer, and the required DB setup.
         """
+        self.logger = logging.getLogger(__name__)
+        self.logger.info("Starting the ORM")
         self.orm = SharedORM(db_url=db_url)
         self.orm.create_table(NewsSummary)
 
