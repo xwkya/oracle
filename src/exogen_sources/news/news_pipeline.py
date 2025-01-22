@@ -13,7 +13,7 @@ import logging
 from datetime import datetime
 from typing import List
 
-from src.ORM.ORMWrapper import SharedORM
+from src.ORM.ORMWrapper import ORMWrapper
 from src.ORM.news_summary import NewsSummary
 from src.exogen_sources.news.producer import Producer
 from src.exogen_sources.news.consumer import Consumer
@@ -34,7 +34,7 @@ class NewsPipeline:
         """
         self.logger = logging.getLogger(__name__)
         self.logger.info("Starting the ORM")
-        self.orm = SharedORM(db_url=db_url)
+        self.orm = ORMWrapper(db_url=db_url)
         self.orm.create_table(NewsSummary)
 
         self.producer = Producer(

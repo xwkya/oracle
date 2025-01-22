@@ -11,7 +11,7 @@ from newspaper import Article
 from datetime import datetime
 from typing import Optional, Dict
 from src.ORM.news_summary import NewsSummary
-from src.ORM.ORMWrapper import SharedORM
+from src.ORM.ORMWrapper import ORMWrapper
 from dotenv import load_dotenv
 import time
 
@@ -26,7 +26,7 @@ class Consumer:
 
     The consumer runs until it encounters a None sentinel.
     """
-    def __init__(self, orm: SharedORM):
+    def __init__(self, orm: ORMWrapper):
         """
         Initializes the consumer. Sets up the LLM pipeline and a reference to the ORM instance.
         """

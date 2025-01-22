@@ -7,7 +7,7 @@ from src.logging_config import setup_logging
 import nltk
 
 
-def parse_date(date_str):
+def parse_date(date_str) -> datetime:
     try:
         return datetime.strptime(date_str, '%Y-%m-%d')
     except ValueError:
