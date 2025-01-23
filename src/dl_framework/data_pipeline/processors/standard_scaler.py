@@ -7,7 +7,7 @@ from src.dl_framework.data_pipeline.processors.base_processor import IProcessor,
 
 
 class StandardScalerProcessor(IProcessor):
-    def __init__(self, cutoff_idx: int):
+    def __init__(self, cutoff_idx: int, with_mean: bool = True, with_std: bool = True):
         super().__init__(
             name='StandardScaler',
             description='Standardize features by removing the mean and scaling to unit variance',
@@ -15,7 +15,7 @@ class StandardScalerProcessor(IProcessor):
         )
 
         self.cutoff_idx = cutoff_idx
-        self.scaler = StandardScaler()
+        self.scaler = StandardScaler(with_mean=with_mean, with_std=with_std)
 
     def fit(self, data: InseeDataState):
         self.scaler.fit(data.data[:self.cutoff_idx, :])
@@ -29,9 +29,11 @@ class StandardScalerProcessor(IProcessor):
         return data
 
 class StandardScalerProcessorFactory(IProcessorFactory):
-    def __init__(self, cutoff_idx: int):
+    def __init__(self, cutoff_idx: int, with_mean: bool = True, with_std: bool = True):
         super().__init__()
         self.cutoff_idx = cutoff_idx
+        self.with_mean = with_mean
+        self.with_std = with_std
 
     def create(self, **kwargs) -> IProcessor:
-        return StandardScalerProcessor(self.cutoff_idx)
+        return StandardScalerProcessor(self.cutoff_idx, with_mean=self.with_mean, with_std=self.with_std)

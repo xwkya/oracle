@@ -1,4 +1,5 @@
 import datetime
+import logging
 from pathlib import Path
 
 import pandas as pd
@@ -14,11 +15,12 @@ class InseeDataProvider(IDataProvider):
 
     def __init__(self):
         super().__init__()
-        pass
+        self.logger = logging.getLogger(InseeDataProvider.__name__)
 
     def iter_data(self, min_date: datetime, max_date: datetime) -> Generator[InseeDataState, None, None]:
         for table_name, csv_file, meta_csv_file in zip(*InseeDataProvider._get_csv_list()):
             df = pd.read_csv(csv_file, index_col='DATE_PARSED')
+
             # Convert the index to datetime
             df.index = pd.to_datetime(df.index, format='%Y-%m-%d')
 
@@ -26,7 +28,10 @@ class InseeDataProvider(IDataProvider):
             df = df.loc[min_date:max_date]
             meta_df = pd.read_csv(meta_csv_file)
 
-            yield InseeDataState(df, meta_df, table_name, 0)
+            # Create the data state and check its sanity
+            data = InseeDataState.from_dataframe(df, meta_df, table_name, 0)
+
+            yield data
 
     @staticmethod
     def _get_csv_list() -> Tuple[List[str], List[Path], List[Path]]:

@@ -1,3 +1,5 @@
+import logging
+
 import numpy as np
 
 from src.dl_framework.data_pipeline.data_states.insee_data_state import InseeDataState
@@ -5,6 +7,7 @@ from src.dl_framework.data_pipeline.processors.base_processor import IProcessor,
 
 
 class LowVarianceDrop(IProcessor):
+    logger = logging.getLogger(__name__)
     def __init__(self, cutoff_idx: int, variance_threshold: float = 1e-5):
         super().__init__("LowVarianceDrop", invertible=False, description="Drops columns with low variance.")
         self.cutoff_idx = cutoff_idx
@@ -14,9 +17,9 @@ class LowVarianceDrop(IProcessor):
         pass
 
     def transform(self, data: InseeDataState) -> InseeDataState:
-        data.data, data.col_to_freq, data.col_names = self._drop_low_variance_columns(
+        data.data, data.col_to_freq, data.col_to_name = self._drop_low_variance_columns(
             data.data,
-            data.col_names,
+            data.col_to_name,
             data.col_to_freq,
             self.cutoff_idx,
             self.variance_threshold
@@ -48,7 +51,7 @@ class LowVarianceDrop(IProcessor):
         keep_mask = stds >= epsilon
 
         if not np.any(keep_mask):
-            print("[WARNING] All columns have variance below epsilon. Keeping them all.")
+            LowVarianceDrop.logger.warning("All columns have variance below epsilon. Keeping them all.")
             keep_mask = np.ones_like(keep_mask, dtype=bool)
 
         array_data = array_data[:, keep_mask]

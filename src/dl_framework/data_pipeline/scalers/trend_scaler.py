@@ -26,7 +26,10 @@ class TrendRemovalScaler:
 
     def __init__(self, train_cutoff_idx: int, config: Optional[TrendRemovalConfig] = None):
         self.train_cutoff_idx = train_cutoff_idx
-        self.config = config or TrendRemovalConfig()
+        if config is None:
+            self.config = TrendRemovalConfig()
+        else:
+            self.config = config
 
         self.table_scaler = None
         self.col_info = {}  # {col_i: {'model': ITrend, 'params': Tuple}}
@@ -65,14 +68,8 @@ class TrendRemovalScaler:
             self.col_info[col_i] = {'model': best_model, 'params': best_params}
 
             y_train_removed = best_model.transform(x_train, y_train, *best_params)
-            train_removed[train_mask, col_i] = y_train_removed
-
-        for col_i in range(n_cols):
-            col_vals = train_removed[:, col_i]
-            not_nan_mask = ~np.isnan(col_vals)
-            if np.any(not_nan_mask):
-                mean_val = np.mean(col_vals[not_nan_mask])
-                col_vals[~not_nan_mask] = mean_val
+            train_indices = np.where(train_mask)[0]
+            train_removed[train_indices, col_i] = y_train_removed
 
         self.table_scaler = StandardScaler()
         self.table_scaler.fit(train_removed)

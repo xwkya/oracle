@@ -16,10 +16,9 @@ class TrendRemovalProcessor(IProcessor):
             invertible=True
         )
         self.logger = logging.getLogger(TrendRemovalProcessor.__name__)
-        self.config = config
 
         try:
-            self.scaler = TrendRemovalScaler(cutoff_idx)
+            self.scaler = TrendRemovalScaler(cutoff_idx, config)
         except TrendRemovalConfigError as e:
             self.logger.error(f"Error while creating TrendRemovalScaler: {e}")
             self.logger.info("Error is not critical, proceeding with the rest of the pipeline")

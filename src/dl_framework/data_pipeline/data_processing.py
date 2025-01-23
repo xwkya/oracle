@@ -1,19 +1,17 @@
 from __future__ import annotations
-
 import logging
 from typing import Tuple, List, Dict, Generator
-from datetime import datetime
 
+from datetime import datetime
 from src.data_sources.data_provider import DataProvider
 from src.data_sources.data_source import DataSource
+from src.date_utils import DateUtils
 from src.dl_framework.data_pipeline.data_states.insee_data_state import InseeDataState
-from src.dl_framework.data_pipeline.data_utils import DataUtils
 from src.dl_framework.data_pipeline.processors.base_processor import IProcessor, IProcessorFactory
-from src.dl_framework.data_pipeline.processors.low_variance_drop import LowVarianceDrop, LowVarianceDropFactory
-from src.dl_framework.data_pipeline.processors.standard_scaler import StandardScalerProcessor, \
-    StandardScalerProcessorFactory
-from src.dl_framework.data_pipeline.processors.trend_removal_processor import TrendRemovalProcessor, \
-    TrendRemovalProcessorFactory
+from src.dl_framework.data_pipeline.processors.low_variance_drop import LowVarianceDropFactory
+from src.dl_framework.data_pipeline.processors.range_scaler_processor import RangeScalerProcessorFactory
+from src.dl_framework.data_pipeline.processors.standard_scaler import StandardScalerProcessorFactory
+from src.dl_framework.data_pipeline.processors.trend_removal_processor import TrendRemovalProcessorFactory
 from src.dl_framework.data_pipeline.scalers.trend_scaler import TrendRemovalConfig
 
 
@@ -26,7 +24,7 @@ class DataProcessing:
         self.min_date = min_date
         self.max_date = max_date
         self.train_cutoff = train_cutoff
-        self.date_range = DataUtils.month_range(min_date, max_date)
+        self.date_range = DateUtils.month_range(min_date, max_date)
 
         date_to_idx = {d: i for i, d in enumerate(self.date_range)}
         self.cutoff_idx = date_to_idx[train_cutoff.strftime('%Y-%m-01')]
@@ -34,16 +32,21 @@ class DataProcessing:
         self.processor_cache: Dict[str, List[IProcessor]] = {}
 
 
-    def add_scaler(self) -> DataProcessing:
-        self.processor_factories.append(StandardScalerProcessorFactory(cutoff_idx=self.cutoff_idx))
+    def add_scaler(self, with_mean: bool=True, with_std: bool=True) -> DataProcessing:
+        self.processor_factories.append(
+            StandardScalerProcessorFactory(cutoff_idx=self.cutoff_idx, with_mean=with_mean, with_std=with_std))
         return self
 
     def add_trend_removal(self, config: TrendRemovalConfig=None) -> DataProcessing:
         self.processor_factories.append(TrendRemovalProcessorFactory(cutoff_idx=self.cutoff_idx, config=config))
         return self
 
-    def add_variance_drop(self) -> DataProcessing:
-        self.processor_factories.append(LowVarianceDropFactory(cutoff_idx=self.cutoff_idx))
+    def add_variance_drop(self, variance_threshold: float=1e-5) -> DataProcessing:
+        self.processor_factories.append(LowVarianceDropFactory(cutoff_idx=self.cutoff_idx, variance_threshold=variance_threshold))
+        return self
+
+    def add_range_scaler(self) -> DataProcessing:
+        self.processor_factories.append(RangeScalerProcessorFactory(cutoff_idx=self.cutoff_idx))
         return self
 
     # ---------------------------------------------
