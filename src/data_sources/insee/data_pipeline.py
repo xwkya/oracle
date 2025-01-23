@@ -15,7 +15,7 @@ class DataFilterConfig:
 
 class InseeDataPipeline:
     def __init__(self):
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(InseeDataPipeline.__name__)
 
     def preprocess_data(self, source_df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """
@@ -97,7 +97,7 @@ class InseeDataPipeline:
         # Filter the metadata by these same columns (TITLE_FR)
         df_metadata_filtered = df_metadata.loc[df_metadata.index.intersection(keep_columns)]
 
-        self.logger.info(f"Kept {df_metadata_filtered.shape[1]} series out of {df_pivot.shape[1]} with last valid date >= {min_date}")
+        self.logger.info(f"Kept {df_pivot_filtered.shape[1]} series out of {df_pivot.shape[1]} with last valid date >= {min_date}")
         return df_pivot_filtered, df_metadata_filtered
 
     def _drop_start_after(
@@ -145,7 +145,7 @@ class InseeDataPipeline:
 
         # Filter columns whose first_valid is <= min_date
         keep_mask = df_valid_obs['first_valid'] <= min_date
-        columns_to_drop = df_valid_obs.loc[~keep_mask, 'TITLE_FR']
+        columns_to_drop = list(df_valid_obs.loc[~keep_mask, 'TITLE_FR'])
         keep_columns = df_valid_obs.loc[keep_mask, 'TITLE_FR']
 
         # Drop columns with at least 70% zeros before min_date_zeros

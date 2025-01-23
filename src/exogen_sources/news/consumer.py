@@ -32,7 +32,7 @@ class Consumer:
         """
         load_dotenv()
         self.orm = orm
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(Consumer.__name__)
         token = os.getenv("HF_TOKEN")
         self.pipe = pipeline(
             "text-generation",

@@ -1,7 +1,7 @@
 import numpy as np
 
 from src.dl_framework.data_pipeline.data_states.insee_data_state import InseeDataState
-from src.dl_framework.data_pipeline.processors.base_processor import IProcessor
+from src.dl_framework.data_pipeline.processors.base_processor import IProcessor, IProcessorFactory
 
 
 class LowVarianceDrop(IProcessor):
@@ -61,3 +61,12 @@ class LowVarianceDrop(IProcessor):
             new_col_names[new_i] = col_names[old_i]
 
         return array_data, new_col_to_freq, new_col_names
+
+class LowVarianceDropFactory(IProcessorFactory):
+    def __init__(self, cutoff_idx: int, variance_threshold: float = 1e-5):
+        super().__init__()
+        self.cutoff_idx = cutoff_idx
+        self.variance_threshold = variance_threshold
+
+    def create(self) -> IProcessor:
+        return LowVarianceDrop(cutoff_idx=self.cutoff_idx, variance_threshold=self.variance_threshold)

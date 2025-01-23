@@ -29,7 +29,7 @@ class ORMWrapper:
         connection_string = get_connection_string()
         self.engine = create_engine(connection_string)
         self.SessionLocal = sessionmaker(bind=self.engine)
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(ORMWrapper.__name__)
 
     def create_table(self, model_class: Type[ModelType]):
         """

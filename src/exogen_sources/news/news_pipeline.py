@@ -32,7 +32,7 @@ class NewsPipeline:
         """
         Initializes the pipeline with producer, consumer, and the required DB setup.
         """
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(NewsPipeline.__name__)
         self.logger.info("Starting the ORM")
         self.orm = ORMWrapper(db_url=db_url)
         self.orm.create_table(NewsSummary)

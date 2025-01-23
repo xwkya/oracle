@@ -4,6 +4,7 @@ import logging
 import pandas as pd
 
 from tqdm import tqdm
+from tqdm.contrib.logging import logging_redirect_tqdm
 from src.core_utils import CoreUtils
 from src.data_sources.insee.data_fetcher import InseeDataFetcher
 from src.data_sources.insee.data_pipeline import InseeDataPipeline, DataFilterConfig
@@ -19,13 +20,13 @@ def parse_args():
     parser.add_argument(
         '--output',
         default=InseeDataProvider.data_path,
-        help='Location to save the output files'
+        help='Location to save the output files. Defaults to the pipeline standard path.'
     )
 
     parser.add_argument(
         '--stopped-before',
         type=DateUtils.parse_date,
-        default='2020-01-01',
+        default='2019-01-01',
         help='Drop every series that stops before this date (YYYY-MM-DD format)'
     )
 
@@ -39,7 +40,7 @@ def parse_args():
     parser.add_argument(
         '--zeros-before',
         type=DateUtils.parse_date,
-        default='2010-01-01',
+        default='2005-01-01',
         help='Drop every series that has too many zeros before this date (YYYY-MM-DD format)'
     )
 
@@ -60,6 +61,10 @@ def parse_args():
 
 
 if __name__ == "__main__":
+    """
+    Create the INSEE tables from the raw data and save them to the output folder (by default this will be the pipeline's standard path).
+    /!\ This script takes a long time to run (~1 hour)
+    """
     setup_logging()
     args = parse_args()
     logger = logging.getLogger(__name__)
@@ -84,19 +89,21 @@ if __name__ == "__main__":
     all_tables = []
 
     # Fetch and process data for each table
-    for table in tqdm(SOURCE_TABLES, desc="Processing tables"):
-        raw_df = data_fetcher.fetch_dataflow_data(table, params, args.remove_stopped)
-        df_pivot, df_metadata = data_pipeline.preprocess_data(raw_df)
-        df_pivot_filtered, df_metadata_filtered = data_pipeline.filter_data(df_pivot, df_metadata, filter_config)
+    with logging_redirect_tqdm():
+        for table in tqdm(SOURCE_TABLES[26:], desc="Processing tables"):
+            raw_df = data_fetcher.fetch_dataflow_data(table, params, args.remove_stopped)
+            df_pivot, df_metadata = data_pipeline.preprocess_data(raw_df)
+            df_pivot_filtered, df_metadata_filtered = data_pipeline.filter_data(df_pivot, df_metadata, filter_config)
 
-        if df_pivot.shape[1] == 0:
-            logger.warning(f"Table {table} has no data left after filtering, skipping it.")
-            continue
+            if df_pivot.shape[1] == 0:
+                logger.warning(f"Table {table} has no data left after filtering, skipping it.")
+                continue
 
-        all_tables.append(table)
-        df_pivot_filtered.to_csv(f"{args.output}/{table}.csv")
-        df_metadata_filtered.to_csv(f"{args.output}/{table}_meta.csv")
+            all_tables.append(table)
+            df_pivot_filtered.to_csv(f"{args.output}/{table}.csv")
+            df_metadata_filtered.to_csv(f"{args.output}/{table}_meta.csv")
 
     logger.info(f"Finished processing {len(all_tables)} tables")
+
     with open(f"{args.output}/all_data.json", "w") as f:
         f.write(json.dumps(all_tables))

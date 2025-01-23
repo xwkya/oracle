@@ -1,164 +1,199 @@
-import pandas as pd
-import numpy as np
-
+from __future__ import annotations
+from dataclasses import dataclass
 from typing import Tuple, Optional
 
+import numpy as np
 from scipy.optimize import curve_fit
 from sklearn.preprocessing import StandardScaler
 from src.dl_framework.data_pipeline.scalers.trends import LinearTrend, ExponentialTrend, ITrend
 
+@dataclass
+class TrendRemovalConfig:
+    include_exponential: bool = True
+    include_linear: bool = True
+
+class TrendRemovalConfigError(Exception):
+    pass
+
 class TrendRemovalScaler:
     """
-    For each column, we do:
-      - Fit a drift model (linear or exponential) on train portion.
-      - Remove that drift from the entire column (train+test).
-      - Fit a StandardScaler on the drift-removed train portion.
-      - In transform(), remove drift then apply the standard scaler.
-      - In inverse_transform(), reverse the standard scaling and reapply drift.
+    Removes per-column drift (linear or exponential), then applies a single StandardScaler
+    on the drift-removed training portion.
 
-    We'll store a dict {col_index: (model_name, model_params, standard_scaler)}.
-    We also store the train_cutoff_idx to know which portion is "train".
+    :param train_cutoff_idx: Index separating training rows from test rows.
+    :type train_cutoff_idx: int
     """
-    def __init__(self, train_cutoff_idx: int):
-        self.train_cutoff_idx = train_cutoff_idx
-        self.stds = None
-        self.table_scaler = None
-        self.col_info = {}  # col -> dict with { 'model', 'params' }
 
-    def fit(self, data: np.ndarray):
+    def __init__(self, train_cutoff_idx: int, config: Optional[TrendRemovalConfig] = None):
+        self.train_cutoff_idx = train_cutoff_idx
+        self.config = config or TrendRemovalConfig()
+
+        self.table_scaler = None
+        self.col_info = {}  # {col_i: {'model': ITrend, 'params': Tuple}}
+
+    def fit(self, data: np.ndarray) -> TrendRemovalScaler:
         """
-        data: shape (num_samples, num_cols), with possible NaNs in test portion.
-              We assume train portion can be forward/back-filled for the fit.
+        Fits drift models for each column on valid training samples and then
+        fits one StandardScaler over the entire drift-removed training subset.
+        Nans are ignored during fitting.
+
+        :param data: Array of shape (num_samples, num_cols) with possible NaNs.
+        :type data: np.ndarray
+        :return: Fitted TrendRemovalScaler instance.
+        :rtype: TrendRemovalScaler
         """
         n_samples, n_cols = data.shape
-        full_x = np.arange(n_samples)
-        x_train = full_x[:self.train_cutoff_idx]
-        train_data = data[:self.train_cutoff_idx, :]
+        x = np.arange(n_samples)
 
-        # Compute std on the original data and clamp
-        stds = np.nanstd(train_data, axis=0)
-        self.stds = np.maximum(stds, 1e-2)
-
-        filled_train_data = pd.DataFrame(data[:self.train_cutoff_idx, :].copy()).ffill().bfill().values
-
-        filled_train_data = filled_train_data / self.stds
-        train_removed = np.zeros_like(filled_train_data)
+        train_removed = np.full((self.train_cutoff_idx, n_cols), np.nan, dtype=np.float32)
 
         for col_i in range(n_cols):
-            y_train = filled_train_data[:, col_i]
+            col_data = data[:, col_i]
+            train_mask = (x < self.train_cutoff_idx) & ~np.isnan(col_data)
+            if not np.any(train_mask):
+                self.col_info[col_i] = {'model': None, 'params': None}
+                continue
 
-            # Fit best trend model
-            best_model, best_params, best_mse = TrendRemovalScaler._fit_best_trend_model(x_train, y_train)
+            x_train = x[train_mask]
+            y_train = col_data[train_mask]
+
+            best_model, best_params, _ = self._fit_best_trend_model(x_train, y_train, self.config)
             if best_model is None:
-                # Fallback: assume linear with slope=0
                 best_model = LinearTrend
                 best_params = [np.mean(y_train), 0.0]
 
-            # Create drift-removed version of training data
+            self.col_info[col_i] = {'model': best_model, 'params': best_params}
+
             y_train_removed = best_model.transform(x_train, y_train, *best_params)
-            train_removed[:, col_i] = y_train_removed
-
-            self.col_info[col_i] = {
-                'model': best_model,
-                'params': best_params,
-            }
-
-        # Replace filled values with mean for standard scaler
-        mask = np.isnan(train_data)
-        train_removed[mask] = np.nan
-
-        # Train standard scaler
-        self.table_scaler = StandardScaler()
-        self.table_scaler.fit(train_removed)
-        return self
-
-    def transform(self, data: np.ndarray, x: Optional[np.ndarray]=None) -> np.ndarray:
-        """
-        data: shape (num_samples, num_cols)
-        x: optional array of shape (num_samples,) for the x-axis.
-        Return the drift-removed + standard-scaled version of data.
-        """
-        n_samples, n_cols = data.shape
-        original_data = data
-        data = data.copy()
-        if x is None:
-            x = np.arange(n_samples)
-
-        removed_matrix = np.zeros_like(data, dtype=np.float32)
-        stds = self.stds
-        data = data / stds
-        data_filled = pd.DataFrame(data).ffill().bfill().values
+            train_removed[train_mask, col_i] = y_train_removed
 
         for col_i in range(n_cols):
-            col_data_filled = data_filled[:, col_i]
+            col_vals = train_removed[:, col_i]
+            not_nan_mask = ~np.isnan(col_vals)
+            if np.any(not_nan_mask):
+                mean_val = np.mean(col_vals[not_nan_mask])
+                col_vals[~not_nan_mask] = mean_val
 
-            info = self.col_info[col_i]
+        self.table_scaler = StandardScaler()
+        self.table_scaler.fit(train_removed)
+
+        return self
+
+    def transform(self, data: np.ndarray, x: Optional[np.ndarray] = None) -> np.ndarray:
+        """
+        Removes drift per column for all rows, then applies the single StandardScaler.
+        Nans are kept but ignored.
+
+        :param data: Array of shape (num_samples, num_cols).
+        :type data: np.ndarray
+        :param x: Optional array of shape (num_samples,) for x-axis values.
+        :type x: Optional[np.ndarray]
+        :return: Drift-removed and scaled array of the same shape, with NaNs preserved.
+        :rtype: np.ndarray
+        """
+        if x is None:
+            x = np.arange(data.shape[0])
+
+        n_samples, n_cols = data.shape
+        removed_matrix = np.full_like(data, np.nan, dtype=np.float32)
+
+        for col_i in range(n_cols):
+            info = self.col_info.get(col_i)
+            if info is None or info['model'] is None:
+                continue
+
             model, params = info['model'], info['params']
+            col_data = data[:, col_i]
+            valid_mask = ~np.isnan(col_data)
 
-            # Remove the drift
-            col_removed = model.transform(x, col_data_filled, *params)
-            removed_matrix[:, col_i] = col_removed
+            x_valid = x[valid_mask]
+            y_valid = col_data[valid_mask]
+            y_removed = model.transform(x_valid, y_valid, *params)
+            removed_matrix[valid_mask, col_i] = y_removed
 
-        # Now standard-scale
-        scaled_matrix = self.table_scaler.transform(removed_matrix)
+        filled_removed_matrix = removed_matrix.copy()
+        col_means = self.table_scaler.mean_
+        for col_i in range(n_cols):
+            valid_mask = ~np.isnan(filled_removed_matrix[:, col_i])
+            if not np.all(valid_mask):
+                filled_removed_matrix[~valid_mask, col_i] = col_means[col_i]
 
-        # Put NaNs back in their positions
-        nan_mask = np.isnan(original_data)
+        scaled_matrix = self.table_scaler.transform(filled_removed_matrix)
+        nan_mask = np.isnan(data)
         scaled_matrix[nan_mask] = np.nan
 
         return scaled_matrix
 
     def inverse_transform(self, data: np.ndarray, x: Optional[np.ndarray] = None) -> np.ndarray:
         """
-        data: shape (num_samples, num_cols), presumably scaled by transform().
-        x: optional array of shape (num_samples,).
+        Reverses the scaling, then re-applies drift per column.
+        Nans are kept but ignored.
 
-        Return: the original-scale data (with drift re-applied).
+        :param data: Scaled array of shape (num_samples, num_cols).
+        :type data: np.ndarray
+        :param x: Optional array of shape (num_samples,) for x-axis values.
+        :type x: Optional[np.ndarray]
+        :return: Original-scale array with NaNs re-inserted.
+        :rtype: np.ndarray
         """
-        n_samples, n_cols = data.shape
-        input_data = data
-        data = data.copy()
         if x is None:
-            x = np.arange(n_samples)
+            x = np.arange(data.shape[0])
 
-        removed_matrix = self.table_scaler.inverse_transform(data)  # shape (num_samples, n_cols)
-        removed_matrix = np.nan_to_num(removed_matrix, nan=0.)
+        n_samples, n_cols = data.shape
+        filled_scaled_matrix = data.copy()
+        nan_mask = np.isnan(data)
+        col_means = self.table_scaler.mean_
 
         for col_i in range(n_cols):
-            info = self.col_info[col_i]
-            model = info['model']
-            params = info['params']
+            mask = np.isnan(filled_scaled_matrix[:, col_i])
+            if np.any(mask):
+                filled_scaled_matrix[mask, col_i] = col_means[col_i]
 
-            col_removed = removed_matrix[:, col_i]
-            # Add drift
-            col_original = model.inverse_transform(x, col_removed, *params)
+        unscaled_matrix = self.table_scaler.inverse_transform(filled_scaled_matrix)
+        original_matrix = np.full_like(unscaled_matrix, np.nan, dtype=np.float32)
 
-            removed_matrix[:, col_i] = col_original
+        for col_i in range(n_cols):
+            info = self.col_info.get(col_i)
+            if info is None or info['model'] is None:
+                continue
 
-        # Scale back by stds
-        original_matrix = removed_matrix * self.stds
+            model, params = info['model'], info['params']
+            col_data = unscaled_matrix[:, col_i]
+            valid_mask = ~nan_mask[:, col_i]
 
-        # Re-insert NaNs from the input data
-        mask = np.isnan(input_data)
-        original_matrix[mask] = np.nan
+            x_valid = x[valid_mask]
+            y_unscaled = col_data[valid_mask]
+            y_original = model.inverse_transform(x_valid, y_unscaled, *params)
+            original_matrix[valid_mask, col_i] = y_original
 
+        original_matrix[nan_mask] = np.nan
         return original_matrix
 
     @staticmethod
-    def _fit_best_trend_model(x, y) -> Tuple[ITrend, Tuple, float]:
+    def _fit_best_trend_model(
+        x: np.ndarray, y: np.ndarray, config: TrendRemovalConfig
+    ) -> Tuple[Optional[ITrend], Optional[Tuple[float, ...]], float]:
         """
-        Given 1D arrays x and y (no NaNs), try fitting the trend models.
-        Currently, supports LinearTrend and ExponentialTrend.
+        Attempts to fit linear and exponential models to find the best MSE.
 
-        :param x: 1D array of x values
-        :param y: 1D array of y values
-        :return: (best_model, best_params, best_mse, best_mse)
+        :param x: 1D array of x-axis values with no NaNs.
+        :type x: np.ndarray
+        :param y: 1D array of y-axis values with no NaNs.
+        :type y: np.ndarray
+        :return: (best_model_class, best_params, best_mse).
+        :rtype: Tuple[Optional[ITrend], Optional[Tuple[float, ...]], float]
         """
-        candidates = [
-            (LinearTrend.name, LinearTrend),
-            (ExponentialTrend.name, ExponentialTrend),
-        ]
 
+        # Get candidates according to config
+        candidates = []
+
+        if config.include_exponential:
+            candidates.append((ExponentialTrend.name, ExponentialTrend))
+
+        if config.include_linear:
+            candidates.append((LinearTrend.name, LinearTrend))
+
+        # Initialize metrics
         best_mse = np.inf
         best_model = None
         best_params = None
@@ -167,36 +202,30 @@ class TrendRemovalScaler:
         for (name, trend_class) in candidates:
             try:
                 p0 = trend_class.initial_guess(y)
-
                 params, _ = curve_fit(trend_class.predict, x, y, p0=p0, maxfev=5000)
                 y_pred = trend_class.predict(x, *params)
                 mse = np.mean((y_pred - y) ** 2)
 
-                # Some penalty heuristics to avoid degenerate exponentials
-
                 if name == 'exponential':
-                    a, b, c = params[0], params[1], params[2]
-                    # b < 0 and c > 0 means exponential decline, extremely unlikely
+                    a, b, c = params
                     if b < 0 and c > 0:
                         continue
-
-                    # y = a + b*e^(cx) <=> y = a + e^(cx + log(b))
-                    # we will impose that growth cannot become > 1 between the 3 years around X.
-                    # e.g cx + log(b) gives the x at which the slope is 1, compute absolute difference to x_max
                     if (b > 0) and abs(-np.log(b) / c - np.max(x)) < 36:
                         mse += 1000
-
-                    # Data is normalized, penalize large c
                     if abs(c) > 1e-1:
-                        mse += 1. * y_scale
+                        mse += 1.0 * y_scale
 
                 if mse < best_mse:
                     best_mse = mse
                     best_model = trend_class
                     best_params = params
 
-
-            except RuntimeError as e:
-                raise e
+            except RuntimeError:
+                continue
 
         return best_model, best_params, best_mse
+
+    @staticmethod
+    def _validate_config(config: TrendRemovalConfig):
+        if not config.include_exponential and not config.include_linear:
+            raise TrendRemovalConfigError("At least one trend type must be included in the config")

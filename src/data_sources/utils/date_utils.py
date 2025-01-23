@@ -1,3 +1,4 @@
+import logging
 import re
 from argparse import ArgumentTypeError
 from datetime import datetime
@@ -6,6 +7,7 @@ import pandas as pd
 
 
 class DateUtils:
+    logger = logging.getLogger("DateUtils")
     @staticmethod
     def parse_date(date_str) -> datetime:
         """
@@ -20,13 +22,14 @@ class DateUtils:
     def parse_time_period(x: str) -> pd.Timestamp:
         """
         Parse a time period into a pandas Timestamp object.
+        The format is for INSEE data, which can be either a year, a quarter, or a month.
         :param x: the time period string to parse (must be in the format YYYY, YYYY-Q1, or YYYY-MM)
         :return: a pandas pd.Timestamp object
         """
         x = str(x).strip()
 
         match_year = re.match(r'^(\d{4})$', x)
-        match_quarter = re.match(r'^(\d{4})-Q([1-4])$', x)
+        match_quarter = re.match(r'^(\d{4})-(S|Q)([1-4])$', x)
         match_month = re.match(r'^(\d{4})-(\d{2})$', x)
 
         if match_year:
@@ -35,7 +38,7 @@ class DateUtils:
 
         elif match_quarter:
             year = int(match_quarter.group(1))
-            quarter = int(match_quarter.group(2))
+            quarter = int(match_quarter.group(3))
 
             month_start = 3 * (quarter - 1) + 1  # Q1=1 -> Month=1, Q2=2 -> Month=4, etc.
             return pd.to_datetime(f'{year}-{month_start:02d}-01')
@@ -46,4 +49,4 @@ class DateUtils:
             return pd.to_datetime(f'{year}-{month:02d}-01')
 
         else:
-            raise ValueError(f"Invalid time period format: {x}")
+            return pd.NaT

@@ -12,3 +12,10 @@ class IProcessor:
 
     def inverse_transform(self, data):
         raise NotImplementedError
+
+class IProcessorFactory:
+    def __init__(self):
+        pass
+
+    def create(self, **kwargs) -> IProcessor:
+        raise NotImplementedError

@@ -11,7 +11,7 @@ class InseeDataFetcher:
     INSEE_BASE_URL: str = "https://bdm.insee.fr"
 
     def __init__(self):
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(InseeDataFetcher.__name__)
         self.dataflow_url = InseeDataFetcher.INSEE_BASE_URL + "/series/sdmx/dataflow"
         self.sdmx_url = InseeDataFetcher.INSEE_BASE_URL + "/series/sdmx"
 
