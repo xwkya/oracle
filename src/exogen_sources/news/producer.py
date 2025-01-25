@@ -47,7 +47,7 @@ class Producer:
         self.window_size_days = window_size_days
         self.max_results_per_topic = max_results_per_topic
         self.language = language
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(Producer.__name__)
         self.headers = {
                 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
                 'Referer': 'https://www.google.com/'

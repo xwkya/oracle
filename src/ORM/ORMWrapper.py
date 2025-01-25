@@ -19,7 +19,7 @@ Base = declarative_base()
 
 ModelType = TypeVar("ModelType", bound=Base)
 
-class SharedORM:
+class ORMWrapper:
     def __init__(self, db_url: Optional[str] = None):
         """
         Initializes a new SharedORM instance.
@@ -29,7 +29,7 @@ class SharedORM:
         connection_string = get_connection_string()
         self.engine = create_engine(connection_string)
         self.SessionLocal = sessionmaker(bind=self.engine)
-        self.logger = logging.getLogger("ORM.ORMWrapper")
+        self.logger = logging.getLogger(ORMWrapper.__name__)
 
     def create_table(self, model_class: Type[ModelType]):
         """
