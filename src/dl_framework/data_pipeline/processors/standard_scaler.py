@@ -28,6 +28,9 @@ class StandardScalerProcessor(IProcessor):
         data.data = self.scaler.inverse_transform(data.data)
         return data
 
+    def get_num_features(self):
+        return self.scaler.mean_.shape[0]
+
 class StandardScalerProcessorFactory(IProcessorFactory):
     def __init__(self, cutoff_idx: int, with_mean: bool = True, with_std: bool = True):
         super().__init__()

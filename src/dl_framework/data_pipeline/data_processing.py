@@ -1,8 +1,15 @@
 from __future__ import annotations
+
+import uuid
+from functools import wraps
+from typing import Tuple, List, Dict, Generator, Optional, Callable, Any
 import logging
-from typing import Tuple, List, Dict, Generator
 
 from datetime import datetime
+
+import numpy as np
+from dateutil.relativedelta import relativedelta
+
 from src.data_sources.data_provider import DataProvider
 from src.data_sources.data_source import DataSource
 from src.date_utils import DateUtils
@@ -15,10 +22,43 @@ from src.dl_framework.data_pipeline.processors.trend_removal_processor import Tr
 from src.dl_framework.data_pipeline.scalers.trend_scaler import TrendRemovalConfig
 
 
-class DataProcessing:
-    def __init__(self, data_source: DataSource, min_date: datetime, max_date: datetime, train_cutoff: datetime):
-        self.logger = logging.getLogger(DataProcessing.__name__)
+def with_processor_id(add_step_method: Callable[[Any, ...], DataProcessor]) -> Callable[[Any, ...], DataProcessor]:
+    """
+    Decorator to add a processor ID to a processor in the data pipeline.
+    Processor IDs will be stored in the pipeline's attribute _processor_ids.
+    _processor_ids is a dictionary mapping each processor id to its index in the pipeline.
+    :param add_step_method: the method to decorate
+    """
+
+    @wraps(add_step_method)
+    def wrapper(self: DataProcessor, *args, processor_id: Optional[str] = None, **kwargs) -> DataProcessor:
+        result = add_step_method(self, *args, **kwargs)
+        if processor_id is None:
+            # Create a random GUID for the processor ID
+            processor_id = str(uuid.uuid4())
+
+        processor_index = len(self.processor_factories) - 1
+        self._processor_ids[processor_id] = processor_index
+
+        return result
+
+    return wrapper
+
+class DataProcessor:
+    def __init__(
+            self,
+            data_source: DataSource,
+            min_date: datetime,
+            max_date: datetime,
+            train_cutoff: datetime,
+            max_elements: Optional[int] = None):
+
+        self.logger = logging.getLogger(DataProcessor.__name__)
         self.processor_factories: List[IProcessorFactory] = []
+
+        # Keep track of the state
+        self.is_fitted = True
+        self.table_names: List[str] = []
 
         self.data_source = data_source
         self.min_date = min_date
@@ -26,27 +66,41 @@ class DataProcessing:
         self.train_cutoff = train_cutoff
         self.date_range = DateUtils.month_range(min_date, max_date)
 
-        date_to_idx = {d: i for i, d in enumerate(self.date_range)}
-        self.cutoff_idx = date_to_idx[train_cutoff.strftime('%Y-%m-01')]
+        self.date_to_idx = {d: i for i, d in enumerate(self.date_range)}
+        self.cutoff_idx = self.date_to_idx[train_cutoff.strftime('%Y-%m-01')]
         self.data_provider = DataProvider()
         self.processor_cache: Dict[str, List[IProcessor]] = {}
+        self.max_elements = max_elements
 
+        self._processor_ids: Dict[
+            str, int] = {}  # Dict of processor names to their index in the processor_factories list
 
-    def add_scaler(self, with_mean: bool=True, with_std: bool=True) -> DataProcessing:
+    @with_processor_id
+    def add_scaler(self, with_mean: bool = True, with_std: bool = True) -> DataProcessor:
         self.processor_factories.append(
             StandardScalerProcessorFactory(cutoff_idx=self.cutoff_idx, with_mean=with_mean, with_std=with_std))
+        self.is_fitted = False
         return self
 
-    def add_trend_removal(self, config: TrendRemovalConfig=None) -> DataProcessing:
-        self.processor_factories.append(TrendRemovalProcessorFactory(cutoff_idx=self.cutoff_idx, config=config))
+    @with_processor_id
+    def add_trend_removal(self, config: TrendRemovalConfig = None) -> DataProcessor:
+        self.processor_factories.append(
+            TrendRemovalProcessorFactory(cutoff_idx=self.cutoff_idx, config=config))
+        self.is_fitted = False
         return self
 
-    def add_variance_drop(self, variance_threshold: float=1e-5) -> DataProcessing:
-        self.processor_factories.append(LowVarianceDropFactory(cutoff_idx=self.cutoff_idx, variance_threshold=variance_threshold))
+    @with_processor_id
+    def add_variance_drop(self, variance_threshold: float = 1e-5) -> DataProcessor:
+        self.processor_factories.append(
+            LowVarianceDropFactory(cutoff_idx=self.cutoff_idx, variance_threshold=variance_threshold))
+        # Does not require fitting
         return self
 
-    def add_range_scaler(self) -> DataProcessing:
-        self.processor_factories.append(RangeScalerProcessorFactory(cutoff_idx=self.cutoff_idx))
+    @with_processor_id
+    def add_range_scaler(self) -> DataProcessor:
+        self.processor_factories.append(
+            RangeScalerProcessorFactory(cutoff_idx=self.cutoff_idx))
+        self.is_fitted = False
         return self
 
     # ---------------------------------------------
@@ -64,19 +118,29 @@ class DataProcessing:
 
                 self.processor_cache[table_name].append(processor)
 
+            self.table_names.append(table_name)
             self.logger.info(f"Finished fitting processors for table {table_name}")
 
+        self.is_fitted = True
+
     def fit_from_provider(self):
-        return self.fit(self.data_provider.iter_data(self.data_source, self.min_date, self.max_date))
+        self.fit(self._yield_from_data_provider())
 
     # ---------------------------------------------
     # Transform methods
     # ---------------------------------------------
-    def transform_from_provider(self):
-        yield from self.transform(self.data_provider.iter_data(self.data_source, self.min_date, self.max_date))
+    def transform_from_provider(self) \
+            -> Generator[InseeDataState, None, None]:
+        yield from self.transform(
+            self._yield_from_data_provider()
+        )
 
     def transform(self, generator: Generator[InseeDataState, None, None]) \
-            -> Generator[Dict[str, InseeDataState], None, None]:
+            -> Generator[InseeDataState, None, None] | None:
+        if not self.is_fitted:
+            self.logger.error("DataProcessing object has not been fitted. Please call fit() first.")
+            return
+
         for data_state in generator:
             table_name = data_state.table_name
             for processor in self.processor_cache[table_name]:
@@ -87,11 +151,15 @@ class DataProcessing:
     # ---------------------------------------------
     # Inverse transform methods
     # ---------------------------------------------
-    def inverse_transform(self, generator: Generator[InseeDataState, None, None])\
-            -> Generator[Dict[str, InseeDataState], None, None]:
+    def inverse_transform(self, generator: Generator[InseeDataState, None, None]) \
+            -> Generator[InseeDataState, None, None] | None | None:
         """
         Transforms the data back to the last non-invertible processor (non-invertible processors lose the data forever)
         """
+        if not self.is_fitted:
+            self.logger.error("DataProcessing object has not been fitted. Please call fit() first.")
+            return
+
         for data_state in generator:
             table_name = data_state.table_name
             for processor in reversed(self.processor_cache[table_name]):
@@ -101,3 +169,62 @@ class DataProcessing:
                 data_state = processor.inverse_transform(data_state)
 
             yield data_state
+
+    # ---------------------------------------------
+    # Visualisation methods
+    # ---------------------------------------------
+    def obtain_trends(self, processor_id: str, min_date: datetime = None, max_date: datetime = None) \
+            -> Generator[InseeDataState, None, None] | None:
+        if processor_id not in self._processor_ids:
+            raise ValueError(f"Processor with id {processor_id} has not been registered."
+                             f" Call .add_trend_removal(processor_id={processor_id}) to register it.")
+
+        if not self.is_fitted:
+            self.logger.error("DataProcessing object has not been fitted. Please call fit() first.")
+            return
+
+        processor_index = self._processor_ids[processor_id]
+
+        if not isinstance(self.processor_factories[processor_index], TrendRemovalProcessorFactory):
+            raise ValueError(f"Processor with id {processor_id} is not a TrendRemovalProcessor. No trend to obtain.")
+
+        # Resolve min/max date
+        if min_date is None:
+            min_date = self.min_date
+        if max_date is None:
+            max_date = self.max_date
+
+        # Remove 1 month (standard is we exclude the upper bound)
+        max_date = max_date - relativedelta(months=1)
+
+        for table_name in self.processor_cache:
+            # Create a dummy insee Data state with the trend
+            min_date_idx = self.date_to_idx[min_date.strftime('%Y-%m-01')]
+            max_date_idx = self.date_to_idx[max_date.strftime('%Y-%m-01')]
+
+            x = np.arange(min_date_idx, max_date_idx + 1)
+            trends = self.processor_cache[table_name][processor_index].create_visualisation(x)
+
+            data_state = InseeDataState.from_data(
+                data=trends,
+                col_to_freq={i: 'M' for i in range(trends.shape[1])},
+                col_to_name={i: f'Trend_{i}' for i in range(trends.shape[1])},
+                dates=[DateUtils.parse_date(d) for d in self.date_range[min_date_idx:max_date_idx + 1]],
+                table_name=table_name,
+                start_index=min_date_idx,
+            )
+
+            for backward_processors in reversed(self.processor_cache[table_name][:processor_index]):
+                if not backward_processors.invertible:
+                    break
+
+                data_state = backward_processors.inverse_transform(data_state)
+
+            yield data_state
+
+    def _yield_from_data_provider(self) -> Generator[InseeDataState, None, None]:
+        return self.data_provider.iter_data(
+            self.data_source,
+            self.min_date,
+            self.max_date,
+            max_elements=self.max_elements)

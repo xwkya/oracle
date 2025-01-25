@@ -4,6 +4,7 @@ from argparse import ArgumentTypeError
 from datetime import datetime
 from typing import List
 
+import numpy as np
 import pandas as pd
 from dateutil.relativedelta import relativedelta
 
@@ -71,3 +72,20 @@ class DateUtils:
             cur += relativedelta(months=1)
 
         return dates
+
+    @staticmethod
+    def is_expected(freq_str: str, date: datetime) -> bool:
+        """
+        :param freq_str: 'A', 'Q', or 'M'
+        :param date: e.g. datetime(2021, 3, 1)
+        :return: True if the date is expected for the frequency
+        """
+        m = date.month
+        if freq_str == 'M':
+            return True
+        elif freq_str == 'Q':
+            return m in [3, 6, 9, 12]
+        elif freq_str == 'A':
+            return m == 1
+        else:
+            return True

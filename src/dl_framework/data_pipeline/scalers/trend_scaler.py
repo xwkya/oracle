@@ -1,16 +1,27 @@
 from __future__ import annotations
+
+import logging
 from dataclasses import dataclass
-from typing import Tuple, Optional
+from typing import Tuple, Optional, List, ClassVar
 
 import numpy as np
-from scipy.optimize import curve_fit
-from sklearn.preprocessing import StandardScaler
-from src.dl_framework.data_pipeline.scalers.trends import LinearTrend, ExponentialTrend, ITrend
+from scipy.optimize import least_squares
+from src.dl_framework.data_pipeline.scalers.trends import LinearTrend, ExponentialTrend, ITrend, InverseExponentialTrend
+
 
 @dataclass
 class TrendRemovalConfig:
     include_exponential: bool = True
     include_linear: bool = True
+    include_inverse_exponential: bool = True
+
+    # The higher the scale the more penalized the model is for having this trend
+    linear_mse_scale: float = 1.0
+    exponential_mse_scale: float = 1.0
+    inverse_exponential_mse_scale: float = 1.0
+
+    # Number of iterations
+    max_iter: Optional[int] = 2000
 
 class TrendRemovalConfigError(Exception):
     pass
@@ -31,7 +42,6 @@ class TrendRemovalScaler:
         else:
             self.config = config
 
-        self.table_scaler = None
         self.col_info = {}  # {col_i: {'model': ITrend, 'params': Tuple}}
 
     def fit(self, data: np.ndarray) -> TrendRemovalScaler:
@@ -48,11 +58,10 @@ class TrendRemovalScaler:
         n_samples, n_cols = data.shape
         x = np.arange(n_samples)
 
-        train_removed = np.full((self.train_cutoff_idx, n_cols), np.nan, dtype=np.float32)
-
         for col_i in range(n_cols):
             col_data = data[:, col_i]
             train_mask = (x < self.train_cutoff_idx) & ~np.isnan(col_data)
+
             if not np.any(train_mask):
                 self.col_info[col_i] = {'model': None, 'params': None}
                 continue
@@ -60,25 +69,19 @@ class TrendRemovalScaler:
             x_train = x[train_mask]
             y_train = col_data[train_mask]
 
-            best_model, best_params, _ = self._fit_best_trend_model(x_train, y_train, self.config)
+            best_model, best_params, mse = self._fit_best_trend_model(x_train, y_train, self.config)
             if best_model is None:
                 best_model = LinearTrend
                 best_params = [np.mean(y_train), 0.0]
+                mse = np.mean((y_train - best_params[0]) ** 2)
 
-            self.col_info[col_i] = {'model': best_model, 'params': best_params}
-
-            y_train_removed = best_model.transform(x_train, y_train, *best_params)
-            train_indices = np.where(train_mask)[0]
-            train_removed[train_indices, col_i] = y_train_removed
-
-        self.table_scaler = StandardScaler()
-        self.table_scaler.fit(train_removed)
+            self.col_info[col_i] = {'model': best_model, 'params': best_params, "mse": mse}
 
         return self
 
     def transform(self, data: np.ndarray, x: Optional[np.ndarray] = None) -> np.ndarray:
         """
-        Removes drift per column for all rows, then applies the single StandardScaler.
+        Removes drift per column for all rows.
         Nans are kept but ignored.
 
         :param data: Array of shape (num_samples, num_cols).
@@ -108,22 +111,14 @@ class TrendRemovalScaler:
             y_removed = model.transform(x_valid, y_valid, *params)
             removed_matrix[valid_mask, col_i] = y_removed
 
-        filled_removed_matrix = removed_matrix.copy()
-        col_means = self.table_scaler.mean_
-        for col_i in range(n_cols):
-            valid_mask = ~np.isnan(filled_removed_matrix[:, col_i])
-            if not np.all(valid_mask):
-                filled_removed_matrix[~valid_mask, col_i] = col_means[col_i]
-
-        scaled_matrix = self.table_scaler.transform(filled_removed_matrix)
         nan_mask = np.isnan(data)
-        scaled_matrix[nan_mask] = np.nan
+        removed_matrix[nan_mask] = np.nan
 
-        return scaled_matrix
+        return removed_matrix
 
     def inverse_transform(self, data: np.ndarray, x: Optional[np.ndarray] = None) -> np.ndarray:
         """
-        Reverses the scaling, then re-applies drift per column.
+        Re-applies drift per column.
         Nans are kept but ignored.
 
         :param data: Scaled array of shape (num_samples, num_cols).
@@ -137,17 +132,7 @@ class TrendRemovalScaler:
             x = np.arange(data.shape[0])
 
         n_samples, n_cols = data.shape
-        filled_scaled_matrix = data.copy()
         nan_mask = np.isnan(data)
-        col_means = self.table_scaler.mean_
-
-        for col_i in range(n_cols):
-            mask = np.isnan(filled_scaled_matrix[:, col_i])
-            if np.any(mask):
-                filled_scaled_matrix[mask, col_i] = col_means[col_i]
-
-        unscaled_matrix = self.table_scaler.inverse_transform(filled_scaled_matrix)
-        original_matrix = np.full_like(unscaled_matrix, np.nan, dtype=np.float32)
 
         for col_i in range(n_cols):
             info = self.col_info.get(col_i)
@@ -155,16 +140,36 @@ class TrendRemovalScaler:
                 continue
 
             model, params = info['model'], info['params']
-            col_data = unscaled_matrix[:, col_i]
+            col_data = data[:, col_i]
             valid_mask = ~nan_mask[:, col_i]
 
             x_valid = x[valid_mask]
             y_unscaled = col_data[valid_mask]
             y_original = model.inverse_transform(x_valid, y_unscaled, *params)
-            original_matrix[valid_mask, col_i] = y_original
+            data[valid_mask, col_i] = y_original
 
-        original_matrix[nan_mask] = np.nan
-        return original_matrix
+        return data
+
+    def output_trends(self, x: np.ndarray) -> np.ndarray:
+        """
+        Outputs the trend for each column.
+        :param x: 1D array of x-axis values.
+        :type x: np.ndarray
+        :return: 2D array of shape (num_samples, num_cols) with the trend for each column.
+        :rtype: np.ndarray
+        """
+        n_samples = x.shape[0]
+        trends_matrix = np.full((n_samples, len(self.col_info)), np.nan, dtype=np.float32)
+
+        for col_i, info in self.col_info.items():
+            if info['model'] is None:
+                continue
+
+            model, params = info['model'], info['params']
+            trends_matrix[:, col_i] = model.predict(x, *params)
+
+        return trends_matrix
+
 
     @staticmethod
     def _fit_best_trend_model(
@@ -180,9 +185,9 @@ class TrendRemovalScaler:
         :return: (best_model_class, best_params, best_mse).
         :rtype: Tuple[Optional[ITrend], Optional[Tuple[float, ...]], float]
         """
-
+        logger = logging.getLogger(TrendRemovalScaler.__name__)
         # Get candidates according to config
-        candidates = []
+        candidates: List[Tuple[str, ClassVar]] = []
 
         if config.include_exponential:
             candidates.append((ExponentialTrend.name, ExponentialTrend))
@@ -190,35 +195,82 @@ class TrendRemovalScaler:
         if config.include_linear:
             candidates.append((LinearTrend.name, LinearTrend))
 
+        if config.include_inverse_exponential:
+            candidates.append((InverseExponentialTrend.name, InverseExponentialTrend))
+
         # Initialize metrics
         best_mse = np.inf
         best_model = None
         best_params = None
-        y_scale = max(np.nanstd(y), (np.nanmax(y) - np.nanmin(y)) / 2)
+
+        # Track the linear slope to discard other models if it is too high
+        linear_parameters = None
 
         for (name, trend_class) in candidates:
-            try:
-                p0 = trend_class.initial_guess(y)
-                params, _ = curve_fit(trend_class.predict, x, y, p0=p0, maxfev=5000)
-                y_pred = trend_class.predict(x, *params)
-                mse = np.mean((y_pred - y) ** 2)
+            def residuals(params, x_r, y_r):
+                r = trend_class.transform(x_r, y_r, *params)
+                return r
 
-                if name == 'exponential':
+            # Discard exponential models if the slope is too low
+            if ((linear_parameters is not None)
+                    and (name == ExponentialTrend.name or name == InverseExponentialTrend.name)
+                    and (linear_parameters[1] < 0.1/(x[-1]-x[0]))):
+                continue
+
+            p0 = trend_class.initial_guess(x, y)
+            is_valid = True
+            for i, p in enumerate(p0):
+                bounds = trend_class.bounds(x, y)
+                if p < bounds[0][i] or p > bounds[1][i]:
+                    is_valid = False
+                    break
+
+            if not is_valid:
+                continue
+
+            try:
+                res = least_squares(
+                    fun=residuals,
+                    x0=p0,
+                    args=(x, y),
+                    max_nfev=config.max_iter,
+                    bounds=trend_class.bounds(x, y)
+                )
+
+                params = res.x
+                final_residuals = residuals(params, x, y)
+                mse = np.mean(final_residuals ** 2)
+
+                if name == ExponentialTrend.name:
                     a, b, c = params
-                    if b < 0 and c > 0:
-                        continue
-                    if (b > 0) and abs(-np.log(b) / c - np.max(x)) < 36:
+                    # we solve for the exponential model y = a + b * exp(c * x) where dy/dx = 0
+                    # we want this to be at least 24 units before the maximum train cutoff or a very long time after
+                    # this is only relevant when c is not too small
+                    x_star = -np.log(b) / c - np.max(x)
+                    if c > 8e-3 and (x_star > -24) and (x_star < 12*10):
                         mse += 1000
-                    if abs(c) > 1e-1:
-                        mse += 1.0 * y_scale
+
+                    mse *= config.exponential_mse_scale
+
+                if name == LinearTrend.name:
+                    linear_parameters = params
+                    mse *= config.linear_mse_scale
+
+                if name == InverseExponentialTrend.name:
+                    mse *= config.inverse_exponential_mse_scale
+
 
                 if mse < best_mse:
                     best_mse = mse
                     best_model = trend_class
                     best_params = params
 
-            except RuntimeError:
-                continue
+            except RuntimeError as e:
+                raise e
+            except Exception as e:
+                print(f"Error fitting {name}")
+                print(f"Initial guess: {p0}")
+                raise e
 
         return best_model, best_params, best_mse
 

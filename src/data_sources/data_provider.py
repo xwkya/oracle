@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Generator, Tuple
+from typing import Dict, Generator, Tuple, Optional
 from datetime import datetime
 
 import numpy as np
@@ -19,16 +19,29 @@ class DataProvider:
     logger = logging.getLogger("DataProvider")
 
     @classmethod
-    def iter_data(cls, source: DataSource, min_date: datetime, max_date: datetime, monthly=True) -> Generator[InseeDataState, None, None]:
+    def iter_data(
+            cls,
+            source: DataSource,
+            min_date: datetime,
+            max_date: datetime,
+            monthly=True,
+            max_elements: Optional[int]=None) -> Generator[InseeDataState, None, None]:
         """
         Iterate over the data from the specified source between the specified dates.
         :param source: The data source (e.g. DataSource.INSEE)
         :param min_date: The minimum date to fetch.
         :param max_date: The maximum date to fetch.
         :param monthly: Whether to fetch the data monthly or relative to its original frequency.
+        :param max_elements: The maximum number of elements to fetch.
         :return: A generator of InseeDataState objects.
         """
+
+        streamed_elements = 0
+
         for data_state in cls.data_provider[source].iter_data(min_date, max_date):
+            if max_elements is not None and streamed_elements >= max_elements:
+                break
+
             if monthly:
                 monthly_dates = DateUtils.month_range(min_date, max_date)
                 date_to_idx = {d: i for i, d in enumerate(monthly_dates)}
@@ -53,4 +66,7 @@ class DataProvider:
                 cls.logger.error(f"Data state sanity check failed")
                 raise e
 
+            streamed_elements += 1
             yield data_state
+
+        cls.logger.info(f"Streamed {streamed_elements} elements from {source.name}")

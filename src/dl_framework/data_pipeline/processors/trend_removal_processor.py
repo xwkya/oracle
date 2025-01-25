@@ -41,6 +41,13 @@ class TrendRemovalProcessor(IProcessor):
         data_state.data = self.scaler.inverse_transform(data_state.data, x)
         return data_state
 
+    def get_num_features(self):
+        return len(self.scaler.col_info)
+
+    def create_visualisation(self, x: np.ndarray) -> np.ndarray:
+        return self.scaler.output_trends(x)
+
+
 class TrendRemovalProcessorFactory(IProcessorFactory):
     def __init__(self, cutoff_idx: int, config: TrendRemovalConfig=None):
         super().__init__()

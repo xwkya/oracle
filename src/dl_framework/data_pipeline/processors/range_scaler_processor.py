@@ -32,6 +32,9 @@ class RangeScalerProcessor(IProcessor):
         data.data = data.data * self.ranges
         return data
 
+    def get_num_features(self):
+        return len(self.ranges)
+
 class RangeScalerProcessorFactory(IProcessorFactory):
     def __init__(self, cutoff_idx: int):
         super().__init__()
