@@ -4,9 +4,8 @@ import torch
 from torch.utils.data import Dataset
 from typing import Optional, Dict, List
 
-from src.dl_framework.data_pipeline.data_processing import DataProcessor
+from src.dl_framework.data_pipeline.data_processor import DataProcessor
 from src.dl_framework.data_pipeline.data_utils import DataUtils
-
 
 class InseeDataset(Dataset):
     def __init__(self,
@@ -83,10 +82,12 @@ class InseeDataset(Dataset):
             torch.manual_seed(seed)
 
         table_data_dict: Dict[str, np.ndarray] = {}
+        table_column_names: Dict[str, Dict[int, str]] = {}
 
         # Transform each table from (L, k_i) => (L, 3*k_i)
         for data_state in data_processor.transform_from_provider():
             table_name = data_state.table_name
+            table_column_names[table_name] = data_state.col_to_name
             raw_table = data_state.data  # shape (L, k_i)
             L, k_i = raw_table.shape
 
@@ -116,8 +117,11 @@ class InseeDataset(Dataset):
             # Store the transformed table
             table_data_dict[table_name] = transformed_table.astype(np.float32)
 
+        self.table_column_names = table_column_names
         self.table_data_dict = table_data_dict
         self.num_tables = len(table_data_dict)
+        self.table_names = list(table_data_dict.keys())
+        self.table_shapes = [table_data_dict[tn].shape[1] // 3 for tn in self.table_names]
 
     def __len__(self):
         return self.number_of_samples

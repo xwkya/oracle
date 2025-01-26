@@ -26,22 +26,17 @@ class ColoredFormatter(logging.Formatter):
     """
 
     def __init__(self, fmt=None, datefmt=None, style='%', use_color=True):
-        # We let the base class handle storing fmt/datefmt
         super().__init__(fmt, datefmt, style)
         self.use_color = use_color
 
     def format(self, record: logging.LogRecord) -> str:
-        # 1. Let the base class set up 'record.asctime' via formatTime if we have %(asctime)s in self._fmt
-        #    or we can just call formatTime manually if we want full control:
         if self.datefmt:
             record.asctime = self.formatTime(record, self.datefmt)
         else:
             record.asctime = self.formatTime(record)
 
-        # 2. Prepare the original message
         message = record.getMessage()
 
-        # 3. Colorize each piece (only if self.use_color is True)
         if self.use_color:
             level_color = COLORS.get(record.levelname, COLORS['RESET'])
             msg_color = COLORS.get(f"{record.levelname}_MESSAGE", COLORS['RESET'])
@@ -50,17 +45,13 @@ class ColoredFormatter(logging.Formatter):
             time_colored = f"{COLORS['TIME']}{record.asctime}{COLORS['RESET']}"
             message_colored = f"{msg_color}{message}{COLORS['RESET']}"
         else:
-            # No color: just use the plain text
             levelname_colored = record.levelname
             name_colored = record.name
             time_colored = record.asctime
             message_colored = message
 
-        # 4. Construct the final single-line string
-        #    This example uses the same structure as "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
         log_line = f"{time_colored} - {name_colored} - {levelname_colored} - {message_colored}"
 
-        # 5. Return the fully colorized string
         return log_line
 
 
@@ -77,6 +68,7 @@ def setup_logging(
         log_file: Optional file path for logging to file
         log_format: Format string for log messages
     """
+
     # Remove any existing root handlers
     for handler in logging.root.handlers[:]:
         logging.root.removeHandler(handler)
@@ -85,7 +77,6 @@ def setup_logging(
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(log_level)
     console_handler.setFormatter(ColoredFormatter(log_format))
-    #console_handler.setFormatter(logging.Formatter(log_format))
 
     # Configure root logger
     logging.root.setLevel(log_level)
