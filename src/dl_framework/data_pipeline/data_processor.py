@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pickle
 import uuid
 from functools import wraps
 from typing import Tuple, List, Dict, Generator, Optional, Callable, Any
@@ -44,6 +45,7 @@ def with_processor_id(add_step_method: Callable[[Any, ...], DataProcessor]) -> C
 
     return wrapper
 
+
 class DataProcessor:
     def __init__(
             self,
@@ -52,6 +54,22 @@ class DataProcessor:
             max_date: datetime,
             train_cutoff: datetime,
             max_elements: Optional[int] = None):
+        """
+        Initializes the `DataProcessor` object with the given parameters.
+
+        Example:
+            >>> data_processor = DataProcessor(DataSource.INSEE, datetime(1970, 1, 1), datetime(2014, 1, 1), datetime(2010, 1, 1))
+            >>> data_processor.add_scaler().add_trend_removal().add_variance_drop().add_range_scaler()
+            >>> data_processor.fit_from_provider()
+            >>> for data_state in data_processor.transform_from_provider():
+            ...     print(data_state.data[:10, :])
+
+        :param data_source: The data source to use (e.g. `DataSource.INSEE`)
+        :param min_date: The minimum date to consider
+        :param max_date: The maximum date to consider
+        :param train_cutoff: The date to use as the training cutoff
+        :param max_elements: The maximum number of tables to process
+        """
 
         self.logger = logging.getLogger(DataProcessor.__name__)
         self.processor_factories: List[IProcessorFactory] = []
@@ -129,12 +147,6 @@ class DataProcessor:
     # ---------------------------------------------
     # Transform methods
     # ---------------------------------------------
-    def transform_from_provider(self) \
-            -> Generator[InseeDataState, None, None]:
-        yield from self.transform(
-            self._yield_from_data_provider()
-        )
-
     def transform(self, generator: Generator[InseeDataState, None, None]) \
             -> Generator[InseeDataState, None, None] | None:
         if not self.is_fitted:
@@ -148,6 +160,12 @@ class DataProcessor:
 
             yield data_state
 
+    def transform_from_provider(self) \
+            -> Generator[InseeDataState, None, None]:
+        yield from self.transform(
+            self._yield_from_data_provider()
+        )
+
     # ---------------------------------------------
     # Inverse transform methods
     # ---------------------------------------------
@@ -155,6 +173,8 @@ class DataProcessor:
             -> Generator[InseeDataState, None, None] | None | None:
         """
         Transforms the data back to the last non-invertible processor (non-invertible processors lose the data forever)
+        :param generator: The generator to transform
+        :return: A generator of the transformed data
         """
         if not self.is_fitted:
             self.logger.error("DataProcessing object has not been fitted. Please call fit() first.")
@@ -221,6 +241,71 @@ class DataProcessor:
                 data_state = backward_processors.inverse_transform(data_state)
 
             yield data_state
+
+    # ---------------------------------------------
+    # Save/Load methods
+    # ---------------------------------------------
+    def save(self, file_path: str) -> None:
+        """
+        Saves the entire DataProcessor state to a file, including factories,
+        fitted processor cache, hyperparameters, etc.
+        """
+        # Build a dictionary of everything we need to recreate the DataProcessor.
+        # (We typically skip self.logger and self.data_provider
+        #  because they can be re-instantiated.)
+        state_dict = {
+            "data_source": self.data_source,
+            "min_date": self.min_date,
+            "max_date": self.max_date,
+            "train_cutoff": self.train_cutoff,
+            "max_elements": self.max_elements,
+            "processor_factories": self.processor_factories,
+            "processor_cache": self.processor_cache,
+            "table_names": self.table_names,
+            "is_fitted": self.is_fitted,
+            "_processor_ids": self._processor_ids,
+            "date_range": self.date_range,
+            "date_to_idx": self.date_to_idx,
+            "cutoff_idx": self.cutoff_idx
+        }
+
+        with open(file_path, "wb") as f:
+            pickle.dump(state_dict, f)
+
+    @classmethod
+    def load(cls, file_path: str) -> DataProcessor:
+        """
+        Loads a DataProcessor instance from a file path.
+        Restores all the internal state, including factories,
+        fitted processors, hyperparameters, etc.
+        """
+        with open(file_path, "rb") as f:
+            state_dict = pickle.load(f)
+
+        # Create a new instance using the constructor parameters
+        new_instance = cls(
+            data_source=state_dict["data_source"],
+            min_date=state_dict["min_date"],
+            max_date=state_dict["max_date"],
+            train_cutoff=state_dict["train_cutoff"],
+            max_elements=state_dict["max_elements"]
+        )
+
+        # Now set all the other attributes that we saved
+        new_instance.processor_factories = state_dict["processor_factories"]
+        new_instance.processor_cache = state_dict["processor_cache"]
+        new_instance.table_names = state_dict["table_names"]
+        new_instance.is_fitted = state_dict["is_fitted"]
+        new_instance._processor_ids = state_dict["_processor_ids"]
+        new_instance.date_range = state_dict["date_range"]
+        new_instance.date_to_idx = state_dict["date_to_idx"]
+        new_instance.cutoff_idx = state_dict["cutoff_idx"]
+
+        # Re-instantiate a logger and data_provider so they're available
+        new_instance.logger = logging.getLogger(DataProcessor.__name__)
+        new_instance.data_provider = DataProvider()
+
+        return new_instance
 
     def _yield_from_data_provider(self) -> Generator[InseeDataState, None, None]:
         return self.data_provider.iter_data(
