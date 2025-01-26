@@ -1,16 +1,32 @@
+from typing import List
+
 import torch
 from torch import nn
 
+from src.dl_framework.core.core_modules.multihead_pooling import MultiHeadPooling
 from src.dl_framework.core.core_modules.transformer_2d import Transformer2D
 from src.dl_framework.core.models.decoder import TableDecoder
 from src.dl_framework.core.models.encoder import TableEncoder
 
 
 class InseeEconModel(nn.Module):
-    def __init__(self, table_names, table_shapes,
-                 embed_dim=32, n_heads=4, ff_dim=128, num_layers=2,
-                 dropout=0.1, use_pos_encoding=True):
+    def __init__(self, table_names: List[str], table_shapes: List[int],
+                 embed_dim=32, n_heads=4, num_layers=2,
+                 dropout=0.1, use_pos_encoding=True, pool_heads=4):
+        """
+        Core model for single country prediction. Currently, the pipeline only works with INSEE data.
+        :param table_names: The name or identifier of each table.
+        :param table_shapes: The list of shapes of each table (number of feature columns excluding augmented columns).
+        :param embed_dim: The embedding dim of each table.
+        :param n_heads: The number of heads in the 2D multi-head attention.
+        :param num_layers: Number of layers of 2D transformer.
+        :param dropout: Dropout rate, used in the transformer to prevent overfitting.
+        :param use_pos_encoding: Whether to use positional encoding in the transformer.
+        :param pool_heads: Number of heads in the pooling layer before the decoding heads.
+        """
         super().__init__()
+
+        ff_dim = embed_dim
 
         self.table_names = table_names
         self.N = len(table_names)
@@ -21,7 +37,7 @@ class InseeEconModel(nn.Module):
         # Create embeddings/decoders
         for tn, k_in in zip(table_names, table_shapes):
             self.table_embeds[tn] = TableEncoder(3 * k_in, embed_dim)
-            self.table_decoders[tn] = TableDecoder(embed_dim,
+            self.table_decoders[tn] = TableDecoder(embed_dim * pool_heads,
                                                    k_in)  # Since we tripled the features for Nan representation
 
         # 2D Transformer core
@@ -33,6 +49,8 @@ class InseeEconModel(nn.Module):
             dropout=dropout,
             use_pos_encoding=use_pos_encoding
         )
+
+        self.pooling_layer = MultiHeadPooling(embed_dim=embed_dim, pool_heads=pool_heads)
 
         # Learned parameter for masking
         self.mask_embedding = nn.Parameter(
@@ -52,6 +70,8 @@ class InseeEconModel(nn.Module):
         Returns:
             dict: A dictionary mapping table names to tensors of shape (B, L, k_i) containing predictions.
         """
+        B, L = batch_data["full_data"][self.table_names[0]].shape[:2]
+
         # Embed each table
         embed_list = []
 
@@ -77,11 +97,15 @@ class InseeEconModel(nn.Module):
         # Pass through the transformer
         padding_mask = batch_data["padding_mask"]  # (B, L, N)
         out_2d = self.core_transformer(masked_embedding, padding_mask=padding_mask)  # (B, L, N, E)
+        out_2d = out_2d.reshape(-1, out_2d.shape[2], out_2d.shape[3])  # (B * L, N, E)
+
+        pooled_output = self.pooling_layer(out_2d)
+        pooled_output = pooled_output.reshape(B, L, -1)
 
         # 3) decode table by table
         decoded = {}
         for i, tn in enumerate(self.table_names):
-            out = self.table_decoders[tn](out_2d[:, :, i, :])  # (B, L, k_i)
+            out = self.table_decoders[tn](pooled_output)  # (B, L, k_i)
             decoded[tn] = out
 
         return decoded

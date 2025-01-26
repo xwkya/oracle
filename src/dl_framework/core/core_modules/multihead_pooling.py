@@ -34,6 +34,6 @@ class MultiHeadPooling(nn.Module):
         out, _ = self.attn(q, x, x)  # out: (B, pool_heads, E)
 
         # Flatten the pool_heads dimension
-        out = out.view(B, self.pool_heads * self.embed_dim)  # (B, pool_heads*E)
+        out = out.reshape(B, self.pool_heads * self.embed_dim)  # (B, pool_heads*E)
 
         return out

@@ -9,7 +9,7 @@ from src.core_utils import CoreUtils
 from src.data_sources.insee.data_fetcher import InseeDataFetcher
 from src.data_sources.insee.data_pipeline import InseeDataPipeline, DataFilterConfig
 from src.data_sources.insee.insee_data_provider import InseeDataProvider
-from src.data_sources.utils.date_utils import DateUtils
+from src.date_utils import DateUtils
 from src.logging_config import setup_logging
 from src.data_sources.insee.inputs import SOURCE_TABLES
 

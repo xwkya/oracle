@@ -1,5 +1,6 @@
 import os
 
+import numpy as np
 import torch
 import wandb
 from tqdm import tqdm
@@ -15,13 +16,16 @@ from src.dl_framework.data_pipeline.datasets.insee_dataset import InseeDataset
 def train_econ_model(train_dataset: InseeDataset,
                      test_dataset: InseeDataset,
                      epochs=5,
-                     batch_size=8,
+                     batch_size=16,
                      num_layers=4,
                      n_heads=8,
                      embed_dim=32,
+                     pool_heads=4,
+                     p3_max=0.7,
                      lr=6e-4,
                      dropout=0.1,
                      seed=42):
+    tables_of_interest = ["CHOMAGE-TRIM-NATIONAL", "CNA-2020-PIB", "TAUX-CHOMAGE"]
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
 
@@ -52,15 +56,19 @@ def train_econ_model(train_dataset: InseeDataset,
         table_shapes=train_dataset.table_shapes,
         embed_dim=embed_dim,
         n_heads=n_heads,
-        ff_dim=256,
         num_layers=num_layers,
         dropout=dropout,
-        use_pos_encoding=True
+        use_pos_encoding=True,
+        pool_heads=pool_heads
     )
+
+    # Get p3 schedule
+    start = train_dataset.p_3_last1yr
+    end = p3_max
+    p3_schedule = np.geomspace(start, end, epochs)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
-    model = torch.compile(model)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-4)
     num_training_steps = len(train_loader) * epochs
@@ -73,9 +81,13 @@ def train_econ_model(train_dataset: InseeDataset,
     )
 
     global_step = len(train_loader)
+    # model = torch.compile(model, dynamic=True)
 
     # Training loop
     for ep in range(epochs):
+        # Update p3
+        train_loader.dataset.p_3_last1yr = p3_schedule[ep]
+        
         model.train()
         total_train_loss = 0.0
         for b_idx, batch_data in tqdm(enumerate(train_loader), desc=f"Train epoch {ep}", total=len(train_loader)):
@@ -113,6 +125,7 @@ def train_econ_model(train_dataset: InseeDataset,
         # Evaluate
         model.eval()
         total_test_loss = 0.0
+        loss_table_of_interest = [0.0 for _ in tables_of_interest]
         with torch.no_grad():
             for b_idx, batch_data in enumerate(test_loader):
                 for tn in batch_data["full_data"]:
@@ -130,6 +143,8 @@ def train_econ_model(train_dataset: InseeDataset,
                     true_missing_mask = batch_data["full_data"][tn][:, :, 2::3] == 1.0
                     valid_mask = ~(expected_missing_mask | true_missing_mask | padding_mask)
                     losses.append(masked_mse_loss(pred, tgt, valid_mask))
+                    if tn in tables_of_interest:
+                        loss_table_of_interest[tables_of_interest.index(tn)] += losses[-1].item()
 
                 loss_val = torch.stack(losses).mean()
                 total_test_loss += loss_val.item()
@@ -142,22 +157,26 @@ def train_econ_model(train_dataset: InseeDataset,
             best_test_loss = avg_test_loss
             torch.save(model.state_dict(), "best_model.pth")
 
-
-        # Log metrics to wandb
-        wandb.log({
+        data_to_log = {
             "train_loss": avg_train_loss,
             "test_loss": avg_test_loss,
             "epoch": ep,
             "lr": current_lr
-        }, step=global_step)
+        }
 
-    # Log best model to wandb
+        # Log the loss of tables of interest
+        loss_table_of_interest = [l / len(test_loader) for l in loss_table_of_interest]
+        for i, tn in enumerate(tables_of_interest):
+            data_to_log[f"{tn}_test_loss"] = loss_table_of_interest[i]
+
+        # Log metrics to wandb
+        wandb.log(data_to_log, step=global_step)
+
+    # Log best model and best test loss to wandb
     artifact = wandb.Artifact("best_model", type="model", metadata={"best_test_loss": best_test_loss})
     artifact.add_file("best_model.pth")
     wandb.log_artifact(artifact)
-
-    # Load the best model
-    model.load_state_dict(torch.load("best_model.pth"))
+    wandb.log({"best_test_loss": best_test_loss})
 
     # Delete the best model file
     os.remove("best_model.pth")

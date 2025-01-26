@@ -19,7 +19,7 @@ class InseeDataset(Dataset):
                  p_2_uniform: float = 0.2,
                  p_3_last1yr: float = 0.3,
                  p_4_table: float = 0.3,
-                 p_uniform: float = 0.2,  # Probability to mask each cell in uniform masking
+                 p_uniform: float = 0.3,  # Probability to mask each cell in uniform masking
                  seed: Optional[int] = 42,
                  inference_mode: bool = False):
         """
@@ -42,10 +42,9 @@ class InseeDataset(Dataset):
         logger = logging.getLogger(InseeDataset.__name__)
         self.logger = logger
 
-        if inference_mode:
-            logger.info("Inference mode: predicting the next year data using train data and test targets")
-        else:
-            logger.info("Training mode: predicting multiple tasks using train data.")
+        if inference_mode and interpolate:
+            logger.warning("Interpolation in inference mode leads to data leakage. Setting interpolate=False.")
+            interpolate = False
 
         # Normalize the probabilities
         p_sum = p_1_none + p_2_uniform + p_3_last1yr + p_4_table
@@ -141,7 +140,7 @@ class InseeDataset(Dataset):
 
         # Sample a random start index if not in inference mode
         if self.inference_mode:
-            start_idx = self.test_start_idx - window_length
+            start_idx = self.test_start_idx - window_length + 12
         else:
             max_start = self.test_start_idx - window_length
             if max_start < 0:

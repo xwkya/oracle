@@ -1,5 +1,7 @@
 import numpy as np
 
+from src.dl_framework.data_pipeline.data_states.insee_data_state import InseeDataState
+
 
 class IProcessor:
     def __init__(self, name: str, invertible: bool, description: str = None):
@@ -7,13 +9,13 @@ class IProcessor:
         self.description = description
         self.invertible = invertible
 
-    def fit(self, data):
+    def fit(self, data: InseeDataState):
         raise NotImplementedError
 
-    def transform(self, data):
+    def transform(self, data: InseeDataState) -> InseeDataState:
         raise NotImplementedError
 
-    def inverse_transform(self, data):
+    def inverse_transform(self, data: InseeDataState) -> InseeDataState:
         raise NotImplementedError
 
     def create_visualisation(self, x: np.ndarray):

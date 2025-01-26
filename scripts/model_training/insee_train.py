@@ -33,10 +33,14 @@ def main():
     parser.add_argument('--n_heads', type=int, default=8, help='Number of attention heads')
     parser.add_argument('--embed_dim', type=int, default=32, help='Embedding dimension')
     parser.add_argument('--dropout', type=float, default=0.1, help='Dropout rate')
-    parser.add_argument('--p1', type=float, default=0.5, help='Probability p1')
-    parser.add_argument('--p2', type=float, default=0.2, help='Probability p2')
-    parser.add_argument('--p3', type=float, default=0.2, help='Probability p3')
-    parser.add_argument('--p4', type=float, default=0.1, help='Probability p4')
+    parser.add_argument("--pool_heads", type=int, default=4, help="Number of heads in the pooling layer. Decoder will have input size = embed_dim * pool_heads")
+    parser.add_argument('--p1', type=float, default=0.3, help='Probability p1')
+    parser.add_argument('--p2', type=float, default=0.3, help='Probability p2')
+    parser.add_argument('--p3', type=float, default=0.3, help='Probability p3')
+    parser.add_argument('--p4', type=float, default=0.3, help='Probability p4')
+    parser.add_argument('--min_window', type=int, default=4, help='Minimum window length in years')
+    parser.add_argument('--max_window', type=int, default=12, help='Maximum window length in years')
+    parser.add_argument("--p3_max", dtype=float, default=0.7, help="Maximum probability for p3, scheduled exponentially")
 
     args = parser.parse_args()
 
@@ -57,8 +61,8 @@ def main():
         reinit=True
     )
 
-    # Update wandb.config with argparse defaults; if wandb is running a sweep,
-    # those parameters will be overwritten.
+    # Update wandb.config with argparse defaults;
+    # If wandb is running a sweep, those parameters will be locked (expected)
     wandb.config.update(vars(args), allow_val_change=True)
 
 
@@ -75,6 +79,12 @@ def main():
     p2 = wandb.config.p2
     p3 = wandb.config.p3
     p4 = wandb.config.p4
+    min_window = wandb.config.min_window
+    max_window = wandb.config.max_window
+    pool_heads = wandb.config.pool_heads
+    p3_max = wandb.config.p3_maxm
+
+    interpolate = False
 
     # --------------------------------------------------
     # Create the dataset
@@ -82,37 +92,39 @@ def main():
     data_processor = DataProcessor(
         data_source=DataSource.INSEE,
         min_date=datetime(1970, 1, 1),
-        max_date=datetime(2014, 1, 1),
-        train_cutoff=datetime(2010, 1, 1)
+        max_date=datetime(2017, 1, 1),
+        train_cutoff=datetime(2016, 1, 1)
     )
     config = TrendRemovalConfig(exponential_mse_scale=0.20, max_iter=None, inverse_exponential_mse_scale=0.64)
-    if os.path.exists("insee_data_processor.pkl"):
-        data_processor = DataProcessor.load("insee_data_processor.pkl")
+    if os.path.exists("data_processor.pkl"):
+        data_processor = DataProcessor.load("data_processor.pkl")
     else:
         data_processor.add_range_scaler().add_trend_removal(config, processor_id='trend').add_scaler()
         data_processor.fit_from_provider()
-        data_processor.save("insee_data_processor.pkl")
+        data_processor.save("data_processor.pkl")
 
     train_dataset = InseeDataset(
         data_processor,
-        min_window_length_year=2,
-        interpolate=False,
+        min_window_length_year=min_window,
+        max_window_length_year=max_window,
+        interpolate=interpolate,
         p_1_none=p1,
         p_2_uniform=p2,
         p_3_last1yr=p3,
         p_4_table=p4,
-        number_of_samples=20_000,
+        number_of_samples=4000,
         seed=42)
 
     test_dataset = InseeDataset(
         data_processor,
-        min_window_length_year=2,
-        interpolate=False,
+        min_window_length_year=min_window,
+        max_window_length_year=max_window,
+        interpolate=interpolate,
         p_1_none=p1,
         p_2_uniform=p2,
         p_3_last1yr=p3,
         p_4_table=p4,
-        number_of_samples=20_000,
+        number_of_samples=6,
         seed=42,
         inference_mode=True)
 
@@ -128,6 +140,9 @@ def main():
         n_heads=n_heads,
         embed_dim=embed_dim,
         dropout=dropout,
+        pool_heads=pool_heads,
+        lr=7e-4,
+        p3_max=p3_max
     )
 
     run.finish()

@@ -64,16 +64,23 @@ class ExponentialTrend(ITrend):
         return a + b * np.exp(c * x)
 
     @staticmethod
-    def transform(x, y, a, b, c):
+    def residuals(x, y, a, b, c):
         exp_value = np.exp(c * x)
         model = a + b * exp_value
-        y_scale = np.max(np.abs(y)) # scalar value
+        y_scale = np.max(np.abs(y))  # scalar value
         return (y - model) / (np.minimum(exp_value, 2 * y_scale) + ExponentialTrend.eps)
 
     @staticmethod
+    def transform(x, y, a, b, c):
+        exp_value = np.exp(c * x)
+        model = a + b * exp_value
+        return (y - model) / (exp_value + ExponentialTrend.eps)
+
+    @staticmethod
     def inverse_transform(x, y, a, b, c):
-        model = a + b * np.exp(c * x)
-        return y * (model + ExponentialTrend.eps) + model
+        exp_value = np.exp(c * x)
+        model = a + b * exp_value
+        return y * (exp_value + ExponentialTrend.eps) + model
 
     @staticmethod
     def initial_guess(x, y):
