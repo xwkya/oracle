@@ -208,13 +208,13 @@ class TrendRemovalScaler:
 
         for (name, trend_class) in candidates:
             def residuals(params, x_r, y_r):
-                r = trend_class.transform(x_r, y_r, *params)
+                r = trend_class.residuals(x_r, y_r, *params)
                 return r
 
             # Discard exponential models if the slope is too low
             if ((linear_parameters is not None)
                     and (name == ExponentialTrend.name or name == InverseExponentialTrend.name)
-                    and (linear_parameters[1] < 0.1/(x[-1]-x[0]))):
+                    and (linear_parameters[1] < 0.2/(x[-1]-x[0]))):
                 continue
 
             p0 = trend_class.initial_guess(x, y)

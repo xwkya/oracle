@@ -119,11 +119,21 @@ class InseeDataset(Dataset):
         self.table_column_names = table_column_names
         self.table_data_dict = table_data_dict
         self.num_tables = len(table_data_dict)
+
+        # Get the table names and shapes in a consistent order
         self.table_names = list(table_data_dict.keys())
+        self.table_names.sort()
         self.table_shapes = [table_data_dict[tn].shape[1] // 3 for tn in self.table_names]
 
     def __len__(self):
         return self.number_of_samples
+
+    def normalize_probabilities(self):
+        p_sum = self.p_1_none + self.p_2_uniform + self.p_3_last1yr + self.p_4_table
+        self.p_1_none = self.p_1_none / p_sum
+        self.p_2_uniform = self.p_2_uniform / p_sum
+        self.p_3_last1yr = self.p_3_last1yr / p_sum
+        self.p_4_table = self.p_4_table / p_sum
 
     def __getitem__(self, idx):
         """
@@ -153,7 +163,7 @@ class InseeDataset(Dataset):
         full_data = {}
         mask = np.zeros((window_length, self.num_tables), dtype=np.float32)
 
-        # 4) Decide which masking mode to apply
+        # Decide which masking mode to apply
         r = np.random.rand()
         if self.inference_mode:
             mask_mode = "last1yr"

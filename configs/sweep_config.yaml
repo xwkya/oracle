@@ -1,0 +1,38 @@
+# sweep_config.yaml
+name: my_model_sweep
+method: random
+project: oracle-v1
+metric:
+  name: test_loss
+  goal: minimize
+
+parameters:
+  batch_size:
+    values: [ 32 ]
+  epochs:
+    values: [ 30, 40, 50 ]
+  num_layers:
+    values: [ 3, 4, 5 ]
+  n_heads:
+    values: [ 2, 4, 8 ]
+  embed_dim:
+    values: [ 32, 64, 96, 128 ]
+  p3:
+    distribution: uniform
+    min: 0.2
+    max: 0.4
+  dropout:
+    distribution: uniform
+    min: 0.065
+    max: 0.125
+  pool_heads:
+    values: [ 2, 4, 8 ]
+  schedulers_config:
+    values: ["scheduler_parameters_dynamic.yaml", "scheduler_parameters_static.yaml"]
+
+
+command:
+  - ${env}
+  - python
+  - -m
+  - scripts.model_training.insee_train

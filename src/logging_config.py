@@ -61,8 +61,6 @@ def setup_logging(
         log_format: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 ) -> None:
     """
-    Setup logging with modern colored output for console and optional file logging.
-
     Args:
         log_level: The logging level to use
         log_file: Optional file path for logging to file

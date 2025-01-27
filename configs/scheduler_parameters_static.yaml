@@ -1,0 +1,9 @@
+table_importance:
+  start: 2.0
+  end: 2.0
+time_decay:
+  start: 0.8
+  end: 0.8
+p3:
+  start: 0.7
+  end: 0.7

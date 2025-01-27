@@ -164,3 +164,5 @@ cython_debug/
 /wandb
 /runs
 *.ipynb
+!getting_started.ipynb
+/artifacts

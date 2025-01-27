@@ -10,11 +10,13 @@ from datetime import datetime
 
 import numpy as np
 from dateutil.relativedelta import relativedelta
+from matplotlib import pyplot as plt
 
 from src.data_sources.data_provider import DataProvider
 from src.data_sources.data_source import DataSource
 from src.date_utils import DateUtils
 from src.dl_framework.data_pipeline.data_states.insee_data_state import InseeDataState
+from src.dl_framework.data_pipeline.data_utils import DataUtils
 from src.dl_framework.data_pipeline.processors.base_processor import IProcessor, IProcessorFactory
 from src.dl_framework.data_pipeline.processors.low_variance_drop import LowVarianceDropFactory
 from src.dl_framework.data_pipeline.processors.range_scaler_processor import RangeScalerProcessorFactory
@@ -142,7 +144,7 @@ class DataProcessor:
         self.is_fitted = True
 
     def fit_from_provider(self):
-        self.fit(self._yield_from_data_provider())
+        self.fit(self._get_data_from_data_provider())
 
     # ---------------------------------------------
     # Transform methods
@@ -163,7 +165,7 @@ class DataProcessor:
     def transform_from_provider(self) \
             -> Generator[InseeDataState, None, None]:
         yield from self.transform(
-            self._yield_from_data_provider()
+            self._get_data_from_data_provider()
         )
 
     # ---------------------------------------------
@@ -195,6 +197,14 @@ class DataProcessor:
     # ---------------------------------------------
     def obtain_trends(self, processor_id: str, min_date: datetime = None, max_date: datetime = None) \
             -> Generator[InseeDataState, None, None] | None:
+        """
+        Obtain trends data from the specified processor.
+        :param processor_id: The id of the processor to obtain the trends from.
+        :param min_date: The minimum date to consider (included).
+        :param max_date: The maximum date to consider (excluded).
+        :return: A generator of the trends data.
+        """
+
         if processor_id not in self._processor_ids:
             raise ValueError(f"Processor with id {processor_id} has not been registered."
                              f" Call .add_trend_removal(processor_id={processor_id}) to register it.")
@@ -241,6 +251,119 @@ class DataProcessor:
                 data_state = backward_processors.inverse_transform(data_state)
 
             yield data_state
+
+    def obtain_raw_data(self, min_date: datetime = None, max_date: datetime = None) \
+            -> Generator[InseeDataState, None, None] | None:
+        """
+        Obtain raw data from the data provider.
+        :param min_date: The minimum date to consider (included).
+        :param max_date: The maximum date to consider (excluded).
+        :return: A generator of the raw data.
+        """
+
+        if not self.is_fitted:
+            self.logger.error("DataProcessing object has not been fitted. Please call fit() first.")
+            return
+
+        if min_date is None:
+            min_date = self.min_date
+        if max_date is None:
+            max_date = self.max_date
+
+        yield from self._get_data_from_data_provider_with_dates(min_date, max_date)
+
+    def plot_trends(
+            self,
+            processor_id: str,
+            table_name: str,
+            min_date: datetime = None,
+            max_date: datetime = None,
+            columns: Optional[List[int]] = None,
+            show: bool = True,
+    ):
+        """
+        Plots the trend and raw data on the original scale for the given table.
+
+        :param processor_id: The ID of the trend-removal processor we want to visualize.
+        :param table_name: The name of the table whose data we are plotting.
+        :param min_date: The earliest date to include (inclusive).
+        :param max_date: The latest date to include (exclusive).
+        :param columns: Optional list of column indices to plot. If None, plots all columns.
+        :param show: If True, calls plt.show() at the end. Otherwise returns the figure object.
+        :return: The matplotlib figure (if show=False) or None (if show=True).
+        """
+
+        if min_date is None:
+            min_date = self.min_date
+        if max_date is None:
+            max_date = self.max_date
+
+        # Obtain trends
+        self.logger.info("Obtaining trends data...")
+        trend_data_state = None
+        for ds in self.obtain_trends(processor_id, min_date, max_date):
+            if ds.table_name == table_name:
+                trend_data_state = ds
+                break  # Found our table, so stop.
+
+        if trend_data_state is None:
+            raise ValueError(f"No trend data found for table '{table_name}'. "
+                             f"Make sure the table exists and that you've fitted the processor.")
+
+        # Obtain raw data
+        self.logger.info("Obtaining raw data...")
+        raw_data_state = None
+        for ds in self.obtain_raw_data(min_date, max_date):
+            if ds.table_name == table_name:
+                raw_data_state = ds
+                break
+
+        if raw_data_state is None:
+            raise ValueError(f"No raw data found for table '{table_name}' in the given date range.")
+
+        # Decide which columns to plot. If columns is None, plot them all.
+        num_features = trend_data_state.data.shape[1]
+        if columns is None:
+            columns = list(range(num_features))
+        else:
+            # Validate that requested columns exist
+            for col in columns:
+                if col < 0 or col >= num_features:
+                    raise IndexError(f"Column index {col} is out of range (0 to {num_features - 1}).")
+
+        # Interpolate the data
+        interpolated_data = DataUtils.interpolate_missing_values(raw_data_state.data.copy())
+
+        # Subplots for each column to avoid crowding them all on one axis.
+        fig, axes = plt.subplots(nrows=len(columns), ncols=1, figsize=(10, 5 * len(columns)), sharex=True)
+        # If there's only one column, axes is just a single Axes object, so make it a list
+        if len(columns) == 1:
+            axes = [axes]
+
+        # Plot raw data and trend on each subplot
+        dates = raw_data_state.dates  # list of datetimes
+        for ax, col_idx in zip(axes, columns):
+            col_name = raw_data_state.col_to_name[col_idx]
+
+            # Plot raw data
+            ax.plot(dates, interpolated_data[:, col_idx], label=f'Raw {col_name}', color='lightgreen')
+
+            # Plot trend data
+            ax.plot(dates, trend_data_state.data[:, col_idx], label=f'Trend {col_name}', color='lightcoral', linestyle='--')
+
+            ax.set_title(f"Table: {table_name} | Column: {col_name}")
+            ax.set_xlabel("Date")
+            ax.set_ylabel("Value")
+            ax.grid(True)
+
+        fig.tight_layout()
+
+        # Show or return the figure
+        if show:
+            plt.show()
+            return None
+        else:
+            return fig
 
     # ---------------------------------------------
     # Save/Load methods
@@ -307,9 +430,16 @@ class DataProcessor:
 
         return new_instance
 
-    def _yield_from_data_provider(self) -> Generator[InseeDataState, None, None]:
+    def _get_data_from_data_provider(self) -> Generator[InseeDataState, None, None]:
         return self.data_provider.iter_data(
             self.data_source,
             self.min_date,
             self.max_date,
+            max_elements=self.max_elements)
+
+    def _get_data_from_data_provider_with_dates(self, min_date: datetime, max_date: datetime) -> Generator[InseeDataState, None, None]:
+        return self.data_provider.iter_data(
+            self.data_source,
+            min_date,
+            max_date,
             max_elements=self.max_elements)

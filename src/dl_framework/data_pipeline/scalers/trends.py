@@ -12,6 +12,10 @@ class ITrend:
         pass
 
     @staticmethod
+    def residuals(x, y, *args):
+        pass
+
+    @staticmethod
     def transform(x, y, *args):
         pass
 
@@ -34,6 +38,10 @@ class LinearTrend(ITrend):
     @staticmethod
     def predict(x, a, b):
         return a + b * x
+
+    @staticmethod
+    def residuals(x, y, a, b):
+        return LinearTrend.transform(x, y, a, b)
 
     @staticmethod
     def transform(x, y, a, b):
@@ -67,8 +75,7 @@ class ExponentialTrend(ITrend):
     def residuals(x, y, a, b, c):
         exp_value = np.exp(c * x)
         model = a + b * exp_value
-        y_scale = np.max(np.abs(y))  # scalar value
-        return (y - model) / (np.minimum(exp_value, 2 * y_scale) + ExponentialTrend.eps)
+        return (y - model) / (np.minimum(exp_value, np.abs(y) * 1.3) + ExponentialTrend.eps)
 
     @staticmethod
     def transform(x, y, a, b, c):
@@ -114,6 +121,11 @@ class InverseExponentialTrend(ITrend):
     def predict(x, a, b, c):
         # a + b exp(-c * x)
         return a + b * np.exp(-c * x)
+
+    @staticmethod
+    def residuals(x, y, a, b, c):
+        model = InverseExponentialTrend.predict(x, a, b, c)
+        return (y - model) / (model + InverseExponentialTrend.eps)
 
     @staticmethod
     def transform(x, y, a, b, c):
