@@ -1,0 +1,228 @@
+{
+  "MetaData": [
+    {
+      "ColumnName": "Dataset"
+    },
+    {
+      "ColumnName": "Last Update"
+    },
+    {
+      "ColumnName": "Year"
+    },
+    {
+      "ColumnName": "Path"
+    }
+  ],
+  "Details": [
+    {
+      "Dataset": "Trade Complementarity Index Export",
+      "Last Update": "2023-03-15",
+      "Year": "1988",
+      "Path": "https://datacatalogfiles.worldbank.org/ddh-published/0064732/DR0092093/DIANA/Trade%20Complementarity%20Index%20Export/og_tci_1988_export_csv.zip"
+    },
+    {
+      "Dataset": "Trade Complementarity Index Export",
+      "Last Update": "2023-03-15",
+      "Year": "1989",
+      "Path": "https://datacatalogfiles.worldbank.org/ddh-published/0064732/DR0092093/DIANA/Trade%20Complementarity%20Index%20Export/og_tci_1989_export_csv.zip"
+    },
+    {
+      "Dataset": "Trade Complementarity Index Export",
+      "Last Update": "2023-03-15",
+      "Year": "1990",
+      "Path": "https://datacatalogfiles.worldbank.org/ddh-published/0064732/DR0092093/DIANA/Trade%20Complementarity%20Index%20Export/og_tci_1990_export_csv.zip"
+    },
+    {
+      "Dataset": "Trade Complementarity Index Export",
+      "Last Update": "2023-03-15",
+      "Year": "1991",
+      "Path": "https://datacatalogfiles.worldbank.org/ddh-published/0064732/DR0092093/DIANA/Trade%20Complementarity%20Index%20Export/og_tci_1991_export_csv.zip"
+    },
+    {
+      "Dataset": "Trade Complementarity Index Export",
+      "Last Update": "2023-03-15",
+      "Year": "1992",
+      "Path": "https://datacatalogfiles.worldbank.org/ddh-published/0064732/DR0092093/DIANA/Trade%20Complementarity%20Index%20Export/og_tci_1992_export_csv.zip"
+    },
+    {
+      "Dataset": "Trade Complementarity Index Export",
+      "Last Update": "2023-03-15",
+      "Year": "1993",
+      "Path": "https://datacatalogfiles.worldbank.org/ddh-published/0064732/DR0092093/DIANA/Trade%20Complementarity%20Index%20Export/og_tci_1993_export_csv.zip"
+    },
+    {
+      "Dataset": "Trade Complementarity Index Export",
+      "Last Update": "2023-03-15",
+      "Year": "1994",
+      "Path": "https://datacatalogfiles.worldbank.org/ddh-published/0064732/DR0092093/DIANA/Trade%20Complementarity%20Index%20Export/og_tci_1994_export_csv.zip"
+    },
+    {
+      "Dataset": "Trade Complementarity Index Export",
+      "Last Update": "2023-03-15",
+      "Year": "1995",
+      "Path": "https://datacatalogfiles.worldbank.org/ddh-published/0064732/DR0092093/DIANA/Trade%20Complementarity%20Index%20Export/og_tci_1995_export_csv.zip"
+    },
+    {
+      "Dataset": "Trade Complementarity Index Export",
+      "Last Update": "2023-03-15",
+      "Year": "1996",
+      "Path": "https://datacatalogfiles.worldbank.org/ddh-published/0064732/DR0092093/DIANA/Trade%20Complementarity%20Index%20Export/og_tci_1996_export_csv.zip"
+    },
+    {
+      "Dataset": "Trade Complementarity Index Export",
+      "Last Update": "2023-03-15",
+      "Year": "1997",
+      "Path": "https://datacatalogfiles.worldbank.org/ddh-published/0064732/DR0092093/DIANA/Trade%20Complementarity%20Index%20Export/og_tci_1997_export_csv.zip"
+    },
+    {
+      "Dataset": "Trade Complementarity Index Export",
+      "Last Update": "2023-03-15",
+      "Year": "1998",
+      "Path": "https://datacatalogfiles.worldbank.org/ddh-published/0064732/DR0092093/DIANA/Trade%20Complementarity%20Index%20Export/og_tci_1998_export_csv.zip"
+    },
+    {
+      "Dataset": "Trade Complementarity Index Export",
+      "Last Update": "2023-03-15",
+      "Year": "1999",
+      "Path": "https://datacatalogfiles.worldbank.org/ddh-published/0064732/DR0092093/DIANA/Trade%20Complementarity%20Index%20Export/og_tci_1999_export_csv.zip"
+    },
+    {
+      "Dataset": "Trade Complementarity Index Export",
+      "Last Update": "2023-09-09",
+      "Year": "2000",
+      "Path": "https://datacatalogfiles.worldbank.org/ddh-published/0064732/DR0092093/DIANA/Trade%20Complementarity%20Index%20Export/og_tci_2000_export_csv.zip"
+    },
+    {
+      "Dataset": "Trade Complementarity Index Export",
+      "Last Update": "2023-10-09",
+      "Year": "2001",
+      "Path": "https://datacatalogfiles.worldbank.org/ddh-published/0064732/DR0092093/DIANA/Trade%20Complementarity%20Index%20Export/og_tci_2001_export_csv.zip"
+    },
+    {
+      "Dataset": "Trade Complementarity Index Export",
+      "Last Update": "2023-09-09",
+      "Year": "2002",
+      "Path": "https://datacatalogfiles.worldbank.org/ddh-published/0064732/DR0092093/DIANA/Trade%20Complementarity%20Index%20Export/og_tci_2002_export_csv.zip"
+    },
+    {
+      "Dataset": "Trade Complementarity Index Export",
+      "Last Update": "2023-09-09",
+      "Year": "2003",
+      "Path": "https://datacatalogfiles.worldbank.org/ddh-published/0064732/DR0092093/DIANA/Trade%20Complementarity%20Index%20Export/og_tci_2003_export_csv.zip"
+    },
+    {
+      "Dataset": "Trade Complementarity Index Export",
+      "Last Update": "2023-11-09",
+      "Year": "2004",
+      "Path": "https://datacatalogfiles.worldbank.org/ddh-published/0064732/DR0092093/DIANA/Trade%20Complementarity%20Index%20Export/og_tci_2004_export_csv.zip"
+    },
+    {
+      "Dataset": "Trade Complementarity Index Export",
+      "Last Update": "2023-09-09",
+      "Year": "2005",
+      "Path": "https://datacatalogfiles.worldbank.org/ddh-published/0064732/DR0092093/DIANA/Trade%20Complementarity%20Index%20Export/og_tci_2005_export_csv.zip"
+    },
+    {
+      "Dataset": "Trade Complementarity Index Export",
+      "Last Update": "2023-09-09",
+      "Year": "2006",
+      "Path": "https://datacatalogfiles.worldbank.org/ddh-published/0064732/DR0092093/DIANA/Trade%20Complementarity%20Index%20Export/og_tci_2006_export_csv.zip"
+    },
+    {
+      "Dataset": "Trade Complementarity Index Export",
+      "Last Update": "2023-09-09",
+      "Year": "2007",
+      "Path": "https://datacatalogfiles.worldbank.org/ddh-published/0064732/DR0092093/DIANA/Trade%20Complementarity%20Index%20Export/og_tci_2007_export_csv.zip"
+    },
+    {
+      "Dataset": "Trade Complementarity Index Export",
+      "Last Update": "2023-10-09",
+      "Year": "2008",
+      "Path": "https://datacatalogfiles.worldbank.org/ddh-published/0064732/DR0092093/DIANA/Trade%20Complementarity%20Index%20Export/og_tci_2008_export_csv.zip"
+    },
+    {
+      "Dataset": "Trade Complementarity Index Export",
+      "Last Update": "2023-10-09",
+      "Year": "2009",
+      "Path": "https://datacatalogfiles.worldbank.org/ddh-published/0064732/DR0092093/DIANA/Trade%20Complementarity%20Index%20Export/og_tci_2009_export_csv.zip"
+    },
+    {
+      "Dataset": "Trade Complementarity Index Export",
+      "Last Update": "2023-11-09",
+      "Year": "2010",
+      "Path": "https://datacatalogfiles.worldbank.org/ddh-published/0064732/DR0092093/DIANA/Trade%20Complementarity%20Index%20Export/og_tci_2010_export_csv.zip"
+    },
+    {
+      "Dataset": "Trade Complementarity Index Export",
+      "Last Update": "2023-11-09",
+      "Year": "2011",
+      "Path": "https://datacatalogfiles.worldbank.org/ddh-published/0064732/DR0092093/DIANA/Trade%20Complementarity%20Index%20Export/og_tci_2011_export_csv.zip"
+    },
+    {
+      "Dataset": "Trade Complementarity Index Export",
+      "Last Update": "2023-11-09",
+      "Year": "2012",
+      "Path": "https://datacatalogfiles.worldbank.org/ddh-published/0064732/DR0092093/DIANA/Trade%20Complementarity%20Index%20Export/og_tci_2012_export_csv.zip"
+    },
+    {
+      "Dataset": "Trade Complementarity Index Export",
+      "Last Update": "2023-11-09",
+      "Year": "2013",
+      "Path": "https://datacatalogfiles.worldbank.org/ddh-published/0064732/DR0092093/DIANA/Trade%20Complementarity%20Index%20Export/og_tci_2013_export_csv.zip"
+    },
+    {
+      "Dataset": "Trade Complementarity Index Export",
+      "Last Update": "2023-11-09",
+      "Year": "2014",
+      "Path": "https://datacatalogfiles.worldbank.org/ddh-published/0064732/DR0092093/DIANA/Trade%20Complementarity%20Index%20Export/og_tci_2014_export_csv.zip"
+    },
+    {
+      "Dataset": "Trade Complementarity Index Export",
+      "Last Update": "2023-11-09",
+      "Year": "2015",
+      "Path": "https://datacatalogfiles.worldbank.org/ddh-published/0064732/DR0092093/DIANA/Trade%20Complementarity%20Index%20Export/og_tci_2015_export_csv.zip"
+    },
+    {
+      "Dataset": "Trade Complementarity Index Export",
+      "Last Update": "2023-11-09",
+      "Year": "2016",
+      "Path": "https://datacatalogfiles.worldbank.org/ddh-published/0064732/DR0092093/DIANA/Trade%20Complementarity%20Index%20Export/og_tci_2016_export_csv.zip"
+    },
+    {
+      "Dataset": "Trade Complementarity Index Export",
+      "Last Update": "2023-11-09",
+      "Year": "2017",
+      "Path": "https://datacatalogfiles.worldbank.org/ddh-published/0064732/DR0092093/DIANA/Trade%20Complementarity%20Index%20Export/og_tci_2017_export_csv.zip"
+    },
+    {
+      "Dataset": "Trade Complementarity Index Export",
+      "Last Update": "2023-11-09",
+      "Year": "2018",
+      "Path": "https://datacatalogfiles.worldbank.org/ddh-published/0064732/DR0092093/DIANA/Trade%20Complementarity%20Index%20Export/og_tci_2018_export_csv.zip"
+    },
+    {
+      "Dataset": "Trade Complementarity Index Export",
+      "Last Update": "2023-11-09",
+      "Year": "2019",
+      "Path": "https://datacatalogfiles.worldbank.org/ddh-published/0064732/DR0092093/DIANA/Trade%20Complementarity%20Index%20Export/og_tci_2019_export_csv.zip"
+    },
+    {
+      "Dataset": "Trade Complementarity Index Export",
+      "Last Update": "2023-11-09",
+      "Year": "2020",
+      "Path": "https://datacatalogfiles.worldbank.org/ddh-published/0064732/DR0092093/DIANA/Trade%20Complementarity%20Index%20Export/og_tci_2020_export_csv.zip"
+    },
+    {
+      "Dataset": "Trade Complementarity Index Export",
+      "Last Update": "2023-11-09",
+      "Year": "2021",
+      "Path": "https://datacatalogfiles.worldbank.org/ddh-published/0064732/DR0092093/DIANA/Trade%20Complementarity%20Index%20Export/og_tci_2021_export_csv.zip"
+    },
+    {
+      "Dataset": "Trade Complementarity Index Export",
+      "Last Update": "2023-11-09",
+      "Year": "2022",
+      "Path": "https://datacatalogfiles.worldbank.org/ddh-published/0064732/DR0092093/DIANA/Trade%20Complementarity%20Index%20Export/og_tci_2022_export_csv.zip"
+    }
+  ]
+}

@@ -13,21 +13,22 @@ import logging
 from typing import Optional, Type, TypeVar, Any
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session, declarative_base
-from src.ORM.db_config import get_connection_string
+from tqdm import tqdm
+
+from src.ORM.db_config import get_connection_string, setup_azure_token_provider
 
 Base = declarative_base()
 
 ModelType = TypeVar("ModelType", bound=Base)
 
 class ORMWrapper:
-    def __init__(self, db_url: Optional[str] = None):
+    def __init__(self):
         """
         Initializes a new SharedORM instance.
-
-        :param db_url: SQLAlchemy database URL.
         """
         connection_string = get_connection_string()
         self.engine = create_engine(connection_string)
+        setup_azure_token_provider(self.engine)
         self.SessionLocal = sessionmaker(bind=self.engine)
         self.logger = logging.getLogger(ORMWrapper.__name__)
 
@@ -80,7 +81,6 @@ class ORMWrapper:
         session: Session = self.SessionLocal()
         self.logger.debug(f"Upserting record in {model_class.__name__} with {pk_field}={pk_value}")
 
-
         try:
             existing = session.query(model_class).filter(getattr(model_class, pk_field) == pk_value).first()
             if existing:
@@ -108,5 +108,53 @@ class ORMWrapper:
             if record:
                 session.delete(record)
                 session.commit()
+        finally:
+            session.close()
+
+    def bulk_insert_records_with_progress(
+            self,
+            model_class: Type[ModelType],
+            data,
+            chunk_size: int = 10_000,
+            log_progress: bool = False,
+            count: int = None
+    ):
+        """
+        Bulk insert records in chunks with an optional tqdm progress bar.
+
+        :param model_class: The SQLAlchemy model class to insert into.
+        :param data: An iterable (or generator) that yields dictionaries matching model_class columns.
+        :param chunk_size: Number of rows to insert per batch.
+        :param log_progress: If True, wraps the data in a tqdm progress bar and logs progress.
+        :param count: If known, the total number of rows in 'data' for tqdm's 'total'.
+        """
+        session = self.SessionLocal()
+        total_inserted = 0
+        chunk = []
+
+        # If log_progress=True, wrap the data in a tqdm object
+        if log_progress:
+            data_iterator = tqdm(data, total=count, desc="Bulk Insert Progress", unit="rows")
+        else:
+            data_iterator = data  # just use data as-is without the progress bar
+
+        try:
+            for row_dict in data_iterator:
+                chunk.append(row_dict)
+                # If chunk is full, push it to the DB
+                if len(chunk) >= chunk_size:
+                    session.bulk_insert_mappings(model_class, chunk)
+                    session.commit()
+                    total_inserted += len(chunk)
+                    chunk.clear()
+
+            # Insert any leftover rows
+            if chunk:
+                session.bulk_insert_mappings(model_class, chunk)
+                session.commit()
+                total_inserted += len(chunk)
+                chunk.clear()
+
+            self.logger.info(f"Finished bulk insert. Total rows inserted: {total_inserted}")
         finally:
             session.close()
