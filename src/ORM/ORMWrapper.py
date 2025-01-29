@@ -27,7 +27,7 @@ class ORMWrapper:
         Initializes a new SharedORM instance.
         """
         connection_string = get_connection_string()
-        self.engine = create_engine(connection_string)
+        self.engine = create_engine(connection_string, connect_args={'connect_timeout': 60})
         setup_azure_token_provider(self.engine)
         self.SessionLocal = sessionmaker(bind=self.engine)
         self.logger = logging.getLogger(ORMWrapper.__name__)
