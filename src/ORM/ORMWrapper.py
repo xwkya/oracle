@@ -14,8 +14,10 @@ from typing import Optional, Type, TypeVar, Any
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session, declarative_base
 from tqdm import tqdm
+from contextlib import contextmanager
 
 from src.ORM.db_config import get_connection_string, setup_azure_token_provider
+
 
 Base = declarative_base()
 
@@ -156,5 +158,13 @@ class ORMWrapper:
                 chunk.clear()
 
             self.logger.info(f"Finished bulk insert. Total rows inserted: {total_inserted}")
+        finally:
+            session.close()
+
+    @contextmanager
+    def query_context(self, model_class: Type[ModelType]):
+        session = self.SessionLocal()
+        try:
+            yield session.query(model_class)
         finally:
             session.close()
