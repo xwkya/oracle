@@ -141,4 +141,4 @@ class DatasetUploader:
         Downloads the Cepii dataset from Azure Blob Storage.
         """
 
-        self.blob_wrapper.download_folder(self.config["datasets"]["CepiFolderPath"], blob_prefix="cepi/")
+        self.blob_wrapper.download_folder(self.config["datasets"]["DatasetRootPath"], blob_prefix="cepi/")
