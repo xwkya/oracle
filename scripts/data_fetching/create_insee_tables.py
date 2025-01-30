@@ -8,7 +8,6 @@ from tqdm.contrib.logging import logging_redirect_tqdm
 from src.core_utils import CoreUtils
 from src.data_sources.insee.data_fetcher import InseeDataFetcher
 from src.data_sources.insee.data_pipeline import InseeDataPipeline, DataFilterConfig
-from src.data_sources.insee.insee_data_provider import InseeDataProvider
 from src.date_utils import DateUtils
 from src.logging_config import setup_logging
 from src.data_sources.insee.inputs import SOURCE_TABLES
@@ -16,10 +15,11 @@ from src.data_sources.insee.inputs import SOURCE_TABLES
 
 def parse_args():
     parser = argparse.ArgumentParser(description='News Pipeline Runner')
+    config = CoreUtils.load_ini_config()
 
     parser.add_argument(
         '--output',
-        default=InseeDataProvider.data_path,
+        default=config["datasets"]["INSEEFolderPath"],
         help='Location to save the output files. Defaults to the pipeline standard path.'
     )
 
@@ -90,7 +90,7 @@ if __name__ == "__main__":
 
     # Fetch and process data for each table
     with logging_redirect_tqdm():
-        for table in tqdm(SOURCE_TABLES[26:], desc="Processing tables"):
+        for table in tqdm(SOURCE_TABLES, desc="Processing tables"):
             raw_df = data_fetcher.fetch_dataflow_data(table, params, args.remove_stopped)
             df_pivot, df_metadata = data_pipeline.preprocess_data(raw_df)
             df_pivot_filtered, df_metadata_filtered = data_pipeline.filter_data(df_pivot, df_metadata, filter_config)

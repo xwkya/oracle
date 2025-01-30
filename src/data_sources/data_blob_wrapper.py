@@ -106,8 +106,6 @@ class DataBlobWrapper:
         :type local_folder_path: str
         :param blob_prefix: Filters which blobs are downloaded by matching this prefix in their name.
         :type blob_prefix: str, optional
-        :return: None
-        :rtype: None
         """
         blobs = self.container_client.list_blobs(name_starts_with=blob_prefix)
         for blob in blobs:
@@ -132,6 +130,7 @@ class DatasetUploader:
     def upload_cepii_dataset(self) -> None:
         """
         Uploads the Cepii dataset to Azure Blob Storage.
+        Currently contains the BACI data and the Gravity Data.
         """
 
         self.blob_wrapper.upload_folder(self.config["datasets"]["CepiFolderPath"], overwrite=False, blob_prefix="cepi/")
@@ -139,6 +138,7 @@ class DatasetUploader:
     def download_cepii_dataset(self) -> None:
         """
         Downloads the Cepii dataset from Azure Blob Storage.
+        Currently contains the BACI data and the Gravity Data.
         """
 
         self.blob_wrapper.download_folder(self.config["datasets"]["DatasetRootPath"], blob_prefix="cepi/")

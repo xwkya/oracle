@@ -36,7 +36,6 @@ def setup_azure_token_provider(engine):
 def get_connection_string() -> str:
     """
     Creates the connection string for Azure SQL Database.
-    The string is intentionally minimal since the token provider will handle authentication.
     """
     return (
         f"mssql+pyodbc://@{os.getenv('DB_SERVER')}:{os.getenv('DB_PORT')}/"

@@ -8,6 +8,11 @@ from src.data_sources.insee.model.dataflow import Dataflow
 
 
 class InseeDataFetcher:
+    """
+    INSEE data can be fetched from the INSEE API.
+    This code serves for future compatibility and update with the INSEE API.
+    The data can be fetched from the Azure Blob Storage as well.
+    """
     INSEE_BASE_URL: str = "https://bdm.insee.fr"
 
     def __init__(self):

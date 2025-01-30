@@ -11,8 +11,6 @@ from src.dl_framework.data_pipeline.data_states.insee_data_state import InseeDat
 
 
 class InseeDataProvider(IDataProvider):
-    data_path: str = "Data/insee/"
-
     def __init__(self):
         super().__init__()
         self.logger = logging.getLogger(InseeDataProvider.__name__)
