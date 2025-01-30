@@ -5,6 +5,8 @@ from azure.identity import DefaultAzureCredential
 from dotenv import load_dotenv
 from sqlalchemy import event
 
+from src.core_utils import CoreUtils
+
 # Load environment variables
 load_dotenv()
 
@@ -37,7 +39,12 @@ def get_connection_string() -> str:
     """
     Creates the connection string for Azure SQL Database.
     """
+    config = CoreUtils.load_ini_config()
+    db_server = config["database"]["server"]
+    db_name = config["database"]["name"]
+    db_port = config["database"]["port"]
+
     return (
-        f"mssql+pyodbc://@{os.getenv('DB_SERVER')}:{os.getenv('DB_PORT')}/"
-        f"{os.getenv('DB_NAME')}?driver=ODBC+Driver+18+for+SQL+Server"
+        f"mssql+pyodbc://@{db_server}:{db_port}/"
+        f"{db_name}?driver=ODBC+Driver+18+for+SQL+Server"
     )

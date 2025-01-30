@@ -3,6 +3,8 @@ from pathlib import Path
 
 
 class CoreUtils:
+    ini_config: configparser.ConfigParser = None
+
     @staticmethod
     def get_root() -> Path:
         """
@@ -24,6 +26,11 @@ class CoreUtils:
 
         :return: The config file, which you can access like a dictionary. Example: config["section"]["key"]
         """
+        if CoreUtils.ini_config is not None:
+            return CoreUtils.ini_config
+
         config = configparser.ConfigParser()
         config.read("appsettings.ini")
+
+        CoreUtils.ini_config = config
         return config
