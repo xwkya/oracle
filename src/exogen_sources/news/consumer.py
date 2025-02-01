@@ -9,9 +9,9 @@ import torch
 from transformers import pipeline
 from newspaper import Article
 from datetime import datetime
-from typing import Optional, Dict
-from src.ORM.news_summary import NewsSummary
-from src.ORM.ORMWrapper import ORMWrapper
+from typing import Optional
+from src.common.azureorm.tables.news_summary import NewsSummary
+from azureorm.ORMWrapper import ORMWrapper
 from dotenv import load_dotenv
 import time
 

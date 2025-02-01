@@ -32,6 +32,9 @@ class GravityDataPipeline:
         # Filter to only select years post-1970
         df = gravity_df[gravity_df["year"] > 1970].copy()
 
+        # Filter to remove countries that appear as the origin and destination
+        df = df[df["iso3_o"] != df["iso3_d"]]
+
         self.logger.info(f"Filtered Gravity data on countries and dates, now has {len(df)} rows.")
 
         # Keep only certain bilateral variables
@@ -47,9 +50,6 @@ class GravityDataPipeline:
             "heg_o",
             "heg_d",
             "col_dep_ever",
-            "col_dep",
-            "col_dep_end_year",
-            "col_dep_end_conflict",
             "sibling_ever",
             "sibling",
             "fta_wto",
@@ -78,11 +78,8 @@ class GravityDataPipeline:
             "heg_o": "HasHegemonyOrigin",
             "heg_d": "HasHegemonyDestination",
             "col_dep_ever": "HasColonialDependencyEver",
-            "col_dep": "HasColonialDependencyNow",
-            "col_dep_end_year": "ColonialDependencyEndYear",
-            "col_dep_end_conflict": "HasColonialDependencyEndConflict",
-            "sibling_ever": "HasSiblingEver",
-            "sibling": "HasSiblingNow",
+            "sibling_ever": "IsSiblingEver",
+            "sibling": "IsSiblingNow",
             "fta_wto": "HasRegionalTradeAgreement",
             "rta_coverage": "RtaCoverage"
         }
@@ -96,8 +93,6 @@ class GravityDataPipeline:
             "HasHegemonyOrigin",
             "HasHegemonyDestination",
             "HasColonialDependencyEver",
-            "HasColonialDependencyNow",
-            "HasColonialDependencyEndConflict",
             "HasRegionalTradeAgreement",
             "HasSiblingEver",
             "HasSiblingNow",
@@ -119,7 +114,6 @@ class GravityDataPipeline:
             "DiplomaticDisagreement",
             "ScaledSci2021",
             "ReligiousProximity",
-            "ColonialDependencyEndYear",
         ]
         for c in float_cols:
             df[c] = pd.to_numeric(df[c], errors="coerce").astype(np.float32)

@@ -13,8 +13,8 @@ import logging
 from datetime import datetime
 from typing import List
 
-from src.ORM.ORMWrapper import ORMWrapper
-from src.ORM.news_summary import NewsSummary
+from azureorm.ORMWrapper import ORMWrapper
+from azureorm.tables.news_summary import NewsSummary
 from src.exogen_sources.news.producer import Producer
 from src.exogen_sources.news.consumer import Consumer
 

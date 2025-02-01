@@ -5,10 +5,7 @@ from azure.identity import DefaultAzureCredential
 from dotenv import load_dotenv
 from sqlalchemy import event
 
-from src.core_utils import CoreUtils
-
-# Load environment variables
-load_dotenv()
+from .utils import OrmUtils
 
 # Constants for Azure SQL authentication
 TOKEN_URL = "https://database.windows.net/"
@@ -39,10 +36,10 @@ def get_connection_string() -> str:
     """
     Creates the connection string for Azure SQL Database.
     """
-    config = CoreUtils.load_ini_config()
-    db_server = config["database"]["server"]
-    db_name = config["database"]["name"]
-    db_port = config["database"]["port"]
+    config = OrmUtils.load_ini_config()
+    db_server = config["database"]["db_server"]
+    db_name = config["database"]["db_name"]
+    db_port = config["database"]["db_port"]
 
     return (
         f"mssql+pyodbc://@{db_server}:{db_port}/"

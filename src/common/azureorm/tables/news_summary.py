@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Optional
 from sqlalchemy import Column, String, Float, Boolean, DateTime
 
-from src.ORM.BaseTable import BaseTable
+from ..BaseTable import BaseTable
 
 
 def hash_url(url: str) -> str:

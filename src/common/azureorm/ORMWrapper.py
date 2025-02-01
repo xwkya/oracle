@@ -10,13 +10,13 @@ Generic ORM wrapper using SQLAlchemy. Handles common operations such as:
 All operations here are synchronous; for async needs, use run_in_executor or an async driver.
 """
 import logging
-from typing import Optional, Type, TypeVar, Any
+from typing import Type, TypeVar, Any
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session, declarative_base
 from tqdm import tqdm
 from contextlib import contextmanager
 
-from src.ORM.db_config import get_connection_string, setup_azure_token_provider
+from .db_config import get_connection_string, setup_azure_token_provider
 
 
 Base = declarative_base()
@@ -112,6 +112,9 @@ class ORMWrapper:
                 session.commit()
         finally:
             session.close()
+    @staticmethod
+    def model_as_dict(obj):
+        return {col.name: getattr(obj, col.name) for col in obj.__table__.columns}
 
     def bulk_insert_records_with_progress(
             self,
@@ -142,6 +145,9 @@ class ORMWrapper:
 
         try:
             for row_dict in data_iterator:
+                if isinstance(row_dict, model_class):
+                    row_dict = self.model_as_dict(row_dict)
+
                 chunk.append(row_dict)
                 # If chunk is full, push it to the DB
                 if len(chunk) >= chunk_size:
