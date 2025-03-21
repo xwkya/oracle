@@ -55,7 +55,7 @@ if __name__ == '__main__':
             orm.bulk_insert_records_with_progress(
                 BaciTradeByProduct,
                 group_aggregate.to_dict(orient='records'),
-                chunk_size=1000,
+                chunk_size=10000,
                 log_progress=True,
                 count=len(group_aggregate)
             )
