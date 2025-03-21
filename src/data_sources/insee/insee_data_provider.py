@@ -45,7 +45,6 @@ class InseeDataProvider(IDataProvider):
         root = CoreUtils.get_root()
         data_dir = root / InseeDataProvider.data_path
 
-        # glob() returns an iterator of Path objects
         csv_files = list(data_dir.glob("*.csv"))
 
         # Filter pivot files (Path objects)

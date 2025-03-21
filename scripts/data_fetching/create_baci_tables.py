@@ -52,6 +52,10 @@ if __name__ == '__main__':
             group_aggregate = baci_pipeline.preprocess_data(baci, countries)
             group_aggregate['Year'] = year
 
+            # Convert to billion of USD
+            group_aggregate['ValueBillionUSD'] = group_aggregate['ValueThousandUSD'] / 1e6
+            group_aggregate.drop(columns=['ValueThousandUSD'], inplace=True)
+
             orm.bulk_insert_records_with_progress(
                 BaciTradeByProduct,
                 group_aggregate.to_dict(orient='records'),

@@ -43,7 +43,7 @@ class BACIDataPipeline:
         group_aggregate = baci_2010_filtered.groupby(['Importer', 'Exporter', 'ProductCode']).agg(
             {'v': 'sum', 'q': 'sum'}).reset_index()
 
-        group_aggregate.rename(columns={'v': 'ValueBillionUSD', 'q': 'Volume'}, inplace=True)
+        group_aggregate.rename(columns={'v': 'ValueThousandUSD', 'q': 'Volume'}, inplace=True)
 
         if len(set(countries) - set(group_aggregate['Importer'].unique())) > 0:
             self.logger.warning(f"Missing countries in the BACI data: {set(countries) - set(group_aggregate['Importer'].unique())}")
