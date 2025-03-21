@@ -14,7 +14,7 @@ from src.data_sources.insee.inputs import SOURCE_TABLES
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='News Pipeline Runner')
+    parser = argparse.ArgumentParser(description='Insee tables creation')
     config = CoreUtils.load_ini_config()
 
     parser.add_argument(

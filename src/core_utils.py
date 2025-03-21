@@ -1,9 +1,21 @@
 import configparser
 from pathlib import Path
 
+import pandas as pd
+
+from azureorm import ORMWrapper
+
 
 class CoreUtils:
     ini_config: configparser.ConfigParser = None
+
+    @staticmethod
+    def get_countries_of_interest() -> set:
+        """
+        Get the set of countries of interest for the project.
+        """
+        config = CoreUtils.load_ini_config()
+        return set(pd.read_csv(config['datasets']['CountriesOfInterest'])['id'])
 
     @staticmethod
     def get_root() -> Path:
@@ -34,3 +46,11 @@ class CoreUtils:
 
         CoreUtils.ini_config = config
         return config
+
+    @staticmethod
+    def get_orm() -> ORMWrapper:
+        """
+        Get the ORMWrapper instance for the project.
+        """
+        config = CoreUtils.load_ini_config()
+        return ORMWrapper(config["database"]["db_server"], config["database"]["db_name"], config["database"]["db_port"])

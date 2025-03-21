@@ -1,0 +1,3 @@
+[submodule "src/common-packages"]
+	path = src/common-packages
+	url = git@github.com:xwkya/oracle-common.git

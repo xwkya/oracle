@@ -22,7 +22,7 @@ class BACIDataPipeline:
 
         # Load the BACI country mapping and filter the countries/rename them.
         baci_country_mapping = pd.read_csv(
-            os.path.join(self.config['datasets']['BACIFolderPath'], 'country_codes_V202401b.csv')
+            os.path.join(self.config['datasets']['BACIFolderPath'], 'country_codes.csv')
         )
 
         code_to_iso = baci_country_mapping[baci_country_mapping['country_iso3'].isin(countries)][
@@ -35,16 +35,18 @@ class BACIDataPipeline:
         self.logger.info(f"Filtered BACI data for {len(countries)} countries. "
                          f"Original data had {len(baci_year_df)} rows, "
                          f"filtered data has {len(baci_2010_filtered)} rows.")
-        baci_2010_filtered['product_category'] = baci_2010_filtered['k'] // 10000
-        baci_2010_filtered['exporter'] = baci_2010_filtered['i'].map(code_to_iso_dict)
-        baci_2010_filtered['importer'] = baci_2010_filtered['j'].map(code_to_iso_dict)
+        baci_2010_filtered['ProductCode'] = baci_2010_filtered['k'] // 10000
+        baci_2010_filtered['Exporter'] = baci_2010_filtered['i'].map(code_to_iso_dict)
+        baci_2010_filtered['Importer'] = baci_2010_filtered['j'].map(code_to_iso_dict)
 
         # Group by exporter, importer, product category and sum the values
-        group_aggregate = baci_2010_filtered.groupby(['importer', 'exporter', 'product_category']).agg(
+        group_aggregate = baci_2010_filtered.groupby(['Importer', 'Exporter', 'ProductCode']).agg(
             {'v': 'sum', 'q': 'sum'}).reset_index()
 
-        if len(set(countries) - set(group_aggregate['importer'].unique())) > 0:
-            self.logger.warning(f"Missing countries in the BACI data: {set(countries) - set(group_aggregate['importer'].unique())}")
+        group_aggregate.rename(columns={'v': 'ValueBillionUSD', 'q': 'Volume'}, inplace=True)
+
+        if len(set(countries) - set(group_aggregate['Importer'].unique())) > 0:
+            self.logger.warning(f"Missing countries in the BACI data: {set(countries) - set(group_aggregate['Importer'].unique())}")
 
         return group_aggregate
 
