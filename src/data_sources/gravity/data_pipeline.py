@@ -94,8 +94,8 @@ class GravityDataPipeline:
             "HasHegemonyDestination",
             "HasColonialDependencyEver",
             "HasRegionalTradeAgreement",
-            "HasSiblingEver",
-            "HasSiblingNow",
+            "IsSiblingEver",
+            "IsSiblingNow",
         ]
 
         # Regional Trade Agreement decoding as per Gravity documentation.

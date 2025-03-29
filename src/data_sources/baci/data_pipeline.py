@@ -35,6 +35,7 @@ class BACIDataPipeline:
         self.logger.info(f"Filtered BACI data for {len(countries)} countries. "
                          f"Original data had {len(baci_year_df)} rows, "
                          f"filtered data has {len(baci_2010_filtered)} rows.")
+
         baci_2010_filtered['ProductCode'] = baci_2010_filtered['k'] // 10000
         baci_2010_filtered['Exporter'] = baci_2010_filtered['i'].map(code_to_iso_dict)
         baci_2010_filtered['Importer'] = baci_2010_filtered['j'].map(code_to_iso_dict)
