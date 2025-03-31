@@ -8,6 +8,8 @@ import pandas as pd
 
 from azureorm.BaseTable import BaseTable
 from src.core_utils import CoreUtils
+from src.data_sources.data_blob_wrapper import DataBlobWrapper
+from src.data_sources.data_source import DataSource
 
 
 class IDataFetcher:
@@ -36,15 +38,20 @@ class DataPipeline(ABC, IDataPipeline):
     - The first column should be the period, and the rest should be the values.
     - The period column should be named 'Period' and be of type pd.Period
     """
-    def __init__(self, data_fetchers: List[IDataFetcher]):
+    def __init__(self, data_fetchers: List[IDataFetcher], data_source: DataSource):
         self.data_fetchers = data_fetchers
         self.countries = CoreUtils.get_countries_of_interest()
+        self.data_source = data_source
 
         # Saving parameters
         self.save_to_file = False
         self.file_path = None
+
         self.save_to_db = False
         self.db_model: Optional[Type[BaseTable]] = None
+
+        self.save_to_blob = False
+        self.blob_wrapper: Optional[DataBlobWrapper] = None
 
     def output_to_file(self, file_path: str) -> DataPipeline:
         self.save_to_file = True
@@ -55,6 +62,13 @@ class DataPipeline(ABC, IDataPipeline):
         self.save_to_db = True
         self.db_model = db_model
         return self
+
+    def output_to_blob(self) -> DataPipeline:
+        self.save_to_blob = True
+        container_name = "processed-data"
+        self.blob_wrapper = DataBlobWrapper(container_name)
+        return self
+
 
     @abstractmethod
     def _process_data(self, data: pd.DataFrame) -> pd.DataFrame:
@@ -86,3 +100,7 @@ class DataPipeline(ABC, IDataPipeline):
                 log_progress=True,
                 count=len(merged_df)
             )
+
+        if self.save_to_blob:
+            self.blob_wrapper.upload_file(self.file_path, blob_name=f"{self.data_source.name.lower()}.csv", overwrite=True)
+

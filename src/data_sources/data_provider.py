@@ -6,7 +6,7 @@ import numpy as np
 
 from src.data_sources.data_provider_contract import IDataProvider
 from src.data_sources.data_source import DataSource
-from src.data_sources.raw_data_pipelines.insee.insee_data_provider import InseeDataProvider
+from src.data_sources.raw_data_pipelines.deprecated.insee.insee_data_provider import InseeDataProvider
 from src.date_utils import DateUtils
 from src.dl_framework.data_pipeline.data_states.insee_data_state import InseeDataState
 

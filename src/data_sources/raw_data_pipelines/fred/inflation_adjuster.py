@@ -4,8 +4,7 @@ from typing import Optional, List
 
 import pandas as pd
 
-from src.data_sources.raw_data_pipelines.fred.inflation_fetcher import InflationFetcher
-from src.data_sources.raw_data_pipelines.fred.inflation_pipeline import InflationDataPipeline
+from src.data_sources.raw_data_pipelines.implementation.inflation_pipeline import InflationDataPipeline
 
 
 class InflationAdjuster:
@@ -22,9 +21,8 @@ class InflationAdjuster:
         """Loads CPI data using InflationFetcher or returns cached data."""
         if cls._cpi_data is None:
             print("INFO: Loading CPI data for the first time...")
-            cpi_data = InflationFetcher.load_inflation_data()
             pipeline = InflationDataPipeline()
-            cls._cpi_data = pipeline.clean_data(cpi_data)
+            cls._cpi_data = pipeline._process_data(pipeline.data_fetchers[0].fetch_data())
             # Ensure index is PeriodIndex for reliable year filtering
             cls._cpi_data.index = cls._cpi_data.index.to_period('M')
             print("INFO: CPI data loaded and cached.")

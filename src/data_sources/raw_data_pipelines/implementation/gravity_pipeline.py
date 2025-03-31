@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 
 from src.core_utils import CoreUtils
+from src.data_sources.data_source import DataSource
 from src.data_sources.raw_data_pipelines.contracts.pipelines_contracts import IDataFetcher, DataPipeline
 
 
@@ -34,7 +35,7 @@ class GravityDataPipeline(DataPipeline):
     """
 
     def __init__(self):
-        super().__init__([GravityDataFetcher()])
+        super().__init__([GravityDataFetcher()], DataSource.GRAVITY)
         self.logger = logging.getLogger(GravityDataPipeline.__name__)
         self.config = CoreUtils.load_ini_config()
 

@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 
 from src.core_utils import CoreUtils
+from src.data_sources.data_source import DataSource
 from src.data_sources.raw_data_pipelines.contracts.pipelines_contracts import IDataFetcher, DataPipeline
 
 
@@ -51,7 +52,7 @@ class BaciDataFetcher(IDataFetcher):
 
 class BACIDataPipeline(DataPipeline):
     def __init__(self, min_year: int, max_year: int):
-        super().__init__([BaciDataFetcher(year) for year in range(min_year, max_year + 1)])
+        super().__init__([BaciDataFetcher(year) for year in range(min_year, max_year + 1)], DataSource.BACI)
         self.logger = logging.getLogger(BACIDataPipeline.__name__)
         self.config = CoreUtils.load_ini_config()
 

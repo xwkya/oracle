@@ -11,7 +11,7 @@ project_root = os.path.abspath(os.path.join(script_dir, '..'))
 sys.path.insert(0, project_root)
 
 from src.core_utils import CoreUtils
-from src.data_sources.raw_data_pipelines.world_bank.wdi.data_fetcher import WDIDataFetcher, WDIDataPipeline
+from src.data_sources.raw_data_pipelines.implementation.wdi_pipeline import WDIDataFetcher, WDIDataPipeline
 from src.logging_config import setup_logging
 
 
@@ -66,31 +66,6 @@ if __name__ == '__main__':
     logger = logging.getLogger()
     args = parse_args()
 
-    # Determine output format for results summary
-    if args.db:
-        output_format = 'db'
-        logger.info("Output configured to database (currently not implemented).")
-    else:
-        output_format = 'csv'  # Default to CSV if --db is not specified
-        logger.info(f"Output summary configured to local CSV in directory: {args.output_dir}")
-
-    # --- Get Countries of Interest ---
-    try:
-        countries = list(CoreUtils.get_countries_of_interest())
-        if not countries:
-            logger.error("Failed to retrieve countries of interest. Exiting.")
-            sys.exit(1)
-        logger.info(f"Retrieved {len(countries)} countries of interest.")
-    except Exception as e:
-        logger.error(f"Error getting countries of interest: {e}", exc_info=True)
-        sys.exit(1)
-
-    # --- Load Data ---
-    wdi_df = WDIDataFetcher.load_wdi_data()
-    if wdi_df is None:
-        logger.error("Failed to load WDI data. Exiting.")
-        sys.exit(1)
-
     # --- Instantiate and Run Pipeline ---
     try:
         pipeline = WDIDataPipeline(
@@ -104,33 +79,19 @@ if __name__ == '__main__':
             preferred_growth_suffix=args.preferred_growth_suffix
         )
 
-        final_indicator_status, redundancy_map = pipeline.process(wdi_df, countries)
+        if args.db:
+            raise NotImplementedError("Database output is not implemented yet.")
 
-        # --- Export Results ---
-        if final_indicator_status.empty:
-            logger.warning("Pipeline processing resulted in an empty status DataFrame. No results to export.")
-        else:
-            # Export the lists of kept/removed series and optionally the reports
-            pipeline.export_results(
-                final_indicator_status,
-                redundancy_map,
-                args.output_dir,
-                output_format,
-                export_reports=args.export_reports  # Pass the flag here
-            )
+        pipeline.save_to_file(args.output_dir)
 
-            # Always export the filtered data CSV
-            filtered_data_output_path = os.path.join(args.output_dir, "filtered_wdi_data.csv")
-            pipeline.export_filtered_data(
-                raw_df=wdi_df,  # Pass the original raw dataframe
-                final_indicator_status_df=final_indicator_status,
-                countries_of_interest=countries,
-                output_path=filtered_data_output_path
-            )
+        pipeline.run_pipeline()
+        if args.export_reports:
+            pipeline.export_filtering_report(args.output_dir + "/reports")
 
     except NotImplementedError as e:
         logger.error(f"Functionality not implemented: {e}")
         sys.exit(1)
+
     except Exception as e:
         logger.error(f"An unexpected error occurred during pipeline processing: {e}", exc_info=True)
         sys.exit(1)

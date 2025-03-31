@@ -4,7 +4,7 @@ import requests
 import xml.etree.ElementTree as ET
 import pandas as pd
 
-from src.data_sources.raw_data_pipelines.insee.model.dataflow import Dataflow
+from src.data_sources.raw_data_pipelines.deprecated.insee.model.dataflow import Dataflow
 
 
 class InseeDataFetcher:
