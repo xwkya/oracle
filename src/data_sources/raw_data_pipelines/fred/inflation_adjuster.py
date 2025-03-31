@@ -4,8 +4,8 @@ from typing import Optional, List
 
 import pandas as pd
 
-from src.data_sources.fred.inflation_fetcher import InflationFetcher
-from src.data_sources.fred.inflation_pipeline import InflationDataPipeline
+from src.data_sources.raw_data_pipelines.fred.inflation_fetcher import InflationFetcher
+from src.data_sources.raw_data_pipelines.fred.inflation_pipeline import InflationDataPipeline
 
 
 class InflationAdjuster:

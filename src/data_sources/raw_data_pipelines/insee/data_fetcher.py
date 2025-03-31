@@ -4,7 +4,7 @@ import requests
 import xml.etree.ElementTree as ET
 import pandas as pd
 
-from src.data_sources.insee.model.dataflow import Dataflow
+from src.data_sources.raw_data_pipelines.insee.model.dataflow import Dataflow
 
 
 class InseeDataFetcher:
@@ -130,7 +130,6 @@ class InseeDataFetcher:
             else:
                 r.raise_for_status()
 
-    import xml.etree.ElementTree as ET
     import pandas as pd
 
     def parse_xml_content(self, xml_content: bytes, remove_stopped=False) -> pd.DataFrame:

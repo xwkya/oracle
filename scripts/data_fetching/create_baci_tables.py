@@ -2,15 +2,13 @@ import argparse
 import logging
 import os
 import sys
-import pandas as pd
 
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 
 from azureorm.tables import BaciTradeByProduct
 from src.core_utils import CoreUtils
-from src.data_sources.baci.data_fetcher import BaciDataFetcher
-from src.data_sources.baci.data_pipeline import BACIDataPipeline
+from src.data_sources.raw_data_pipelines.baci.data_fetcher import BaciDataFetcher, BACIDataPipeline
 from src.logging_config import setup_logging
 
 
@@ -88,14 +86,8 @@ if __name__ == '__main__':
         for year in tqdm(range(args.min_year, args.max_year + 1), desc="Processing years"):
             logger.info(f"Processing BACI data for year {year}")
             try:
-                # Load data for the year
-                baci = BaciDataFetcher.load_baci_file(year)
-                if baci is None or baci.empty:
-                    logger.warning(f"No data loaded for year {year}, skipping.")
-                    continue
-
                 # Process data
-                baci_pipeline = BACIDataPipeline()
+                baci_pipeline = BACIDataPipeline(year)
                 group_aggregate = baci_pipeline.preprocess_data(baci, countries)
 
                 if group_aggregate is None or group_aggregate.empty:

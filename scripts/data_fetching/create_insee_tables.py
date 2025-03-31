@@ -6,11 +6,11 @@ import pandas as pd
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 from src.core_utils import CoreUtils
-from src.data_sources.insee.data_fetcher import InseeDataFetcher
-from src.data_sources.insee.data_pipeline import InseeDataPipeline, DataFilterConfig
+from src.data_sources.raw_data_pipelines.insee.data_fetcher import InseeDataFetcher
+from src.data_sources.raw_data_pipelines.insee.data_pipeline import InseeDataPipeline, DataFilterConfig
 from src.date_utils import DateUtils
 from src.logging_config import setup_logging
-from src.data_sources.insee.inputs import SOURCE_TABLES
+from src.data_sources.raw_data_pipelines.insee.inputs import SOURCE_TABLES
 
 
 def parse_args():

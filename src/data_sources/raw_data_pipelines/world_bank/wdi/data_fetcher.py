@@ -29,25 +29,25 @@ class WDIDataFetcher:
         try:
             WDIDataFetcher._logger.info(f"Loading WDI data from: {file_path}")
             df = pd.read_csv(file_path)
-            logger.info(f"Successfully loaded WDI data with shape: {df.shape}")
+            WDIDataFetcher._logger.info(f"Successfully loaded WDI data with shape: {df.shape}")
             # Basic validation
             expected_cols = ['Country Name', 'Country Code', 'Indicator Name', 'Indicator Code']
             if not all(col in df.columns for col in expected_cols):
-                logger.error(f"WDI CSV missing expected columns. Found: {df.columns.tolist()}")
+                WDIDataFetcher._logger.error(f"WDI CSV missing expected columns. Found: {df.columns.tolist()}")
                 return None
             # Check for year columns (basic check) - assumes years start from 1960 onwards
             year_cols = [col for col in df.columns if col.isdigit() and int(col) >= 1960]
             if not year_cols:
-                logger.error("WDI CSV does not appear to contain year columns (e.g., '1960', '1961', ...).")
+                WDIDataFetcher._logger.error("WDI CSV does not appear to contain year columns (e.g., '1960', '1961', ...).")
                 return None
-            logger.info(f"Found {len(year_cols)} potential year columns.")
+            WDIDataFetcher._logger.info(f"Found {len(year_cols)} potential year columns.")
 
             return df
         except FileNotFoundError:
-            logger.error(f"WDI data file not found at: {file_path}")
+            WDIDataFetcher._logger.error(f"WDI data file not found at: {file_path}")
             return None
         except Exception as e:
-            logger.error(f"Error loading WDI data from {file_path}: {e}", exc_info=True)
+            WDIDataFetcher._logger.error(f"Error loading WDI data from {file_path}: {e}", exc_info=True)
             return None
 
 

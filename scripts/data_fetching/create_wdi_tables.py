@@ -3,7 +3,6 @@ import argparse
 import logging
 import os
 import sys
-import pandas as pd
 
 # Ensure the src directory is in the Python path
 # Adjust the number of '..' based on your project structure
@@ -12,7 +11,7 @@ project_root = os.path.abspath(os.path.join(script_dir, '..'))
 sys.path.insert(0, project_root)
 
 from src.core_utils import CoreUtils
-from src.data_sources.world_bank.wdi.data_fetcher import WDIDataFetcher, WDIDataPipeline
+from src.data_sources.raw_data_pipelines.world_bank.wdi.data_fetcher import WDIDataFetcher, WDIDataPipeline
 from src.logging_config import setup_logging
 
 
