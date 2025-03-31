@@ -80,11 +80,8 @@ class DataBlobWrapper:
         Subfolders are represented by the blob name's path-like structure.
 
         :param local_folder_path: Path to the local folder that will be uploaded recursively.
-        :type local_folder_path: str
         :param overwrite: Determines whether to overwrite blobs if they already exist.
-        :type overwrite: bool
         :param blob_prefix: A prefix to prepend to all blob names, usually a path-like structure.
-        :type blob_prefix: str
         """
         for root, _, files in os.walk(local_folder_path):
             for file_name in files:

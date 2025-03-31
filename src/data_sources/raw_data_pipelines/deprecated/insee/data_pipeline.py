@@ -3,7 +3,6 @@ from dataclasses import dataclass
 from typing import Tuple, Union
 import pandas as pd
 
-from src.data_sources.insee.data_fetcher import InseeDataFetcher
 from src.date_utils import DateUtils
 
 @dataclass

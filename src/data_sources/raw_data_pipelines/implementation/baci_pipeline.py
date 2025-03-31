@@ -1,53 +1,106 @@
 import logging
 import os
-from typing import Tuple, List
+import os.path
+from typing import List, Tuple
 
+import numpy as np
 import pandas as pd
 
 from src.core_utils import CoreUtils
+from src.data_sources.data_source import DataSource
+from src.data_sources.raw_data_pipelines.contracts.pipelines_contracts import IDataFetcher, DataPipeline
 
 
-class BACIDataPipeline:
-    def __init__(self):
+class BaciDataFetcher(IDataFetcher):
+    """
+    The BACI dataset can be found at https://www.cepii.fr/CEPII/fr/bdd_modele/bdd_modele_item.asp?id=37.
+    The dataset does not expose an API, so it must be downloaded manually.
+    To get the dataset directly from the Azure Blob Storage, use the DatasetUploader class.
+    """
+
+    def __init__(self, year: int):
+        self.year = year
+
+    def fetch_data(self) -> pd.DataFrame:
+        """
+        Load the BACI dataset for a specific year.
+        :param year: The year of the dataset.
+        :return: The BACI dataset as a DataFrame.
+        """
+
+        config = CoreUtils.load_ini_config()
+        baci_path = config["datasets"]["BACIFolderPath"]
+        try:
+            # noinspection PyTypeChecker
+            baci_year = pd.read_csv(
+                os.path.join(baci_path, f"{self.year}.csv"),
+                dtype={'t': np.int16, 'i': np.int16, 'j': np.int16, 'k': np.int32, 'v': np.float64, 'q': np.float64},
+                na_values=['NA', 'N/A', 'NULL', ' ', ''],
+                skipinitialspace=True
+            )
+
+            baci_year['Year'] = self.year
+
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Could not find BACI file for year {self.year} at path {baci_path}")
+
+        except Exception as e:
+            raise Exception(f"An error occurred while loading the BACI file for year {self.year}") from e
+
+        return baci_year
+
+
+class BACIDataPipeline(DataPipeline):
+    def __init__(self, min_year: int, max_year: int):
+        super().__init__([BaciDataFetcher(year) for year in range(min_year, max_year + 1)], DataSource.BACI)
         self.logger = logging.getLogger(BACIDataPipeline.__name__)
         self.config = CoreUtils.load_ini_config()
 
-    def preprocess_data(self, baci_year_df: pd.DataFrame, countries: List[str]) -> pd.DataFrame:
-        """
-        Baci data has a consistent format across the years, so we will only clean the data here.
-        :param baci_year_df: The DataFrame containing the Baci data for a specific year.
-        :param countries: The list of countries to keep.
-        :return: The cleaned DataFrame with the following columns: exporter, importer, product_category, v, q
-        """
+    def _process_data(self, data: pd.DataFrame) -> pd.DataFrame:
+        # Get the year
+        year = data['Year'].iloc[0]
 
-        # Load the BACI country mapping and filter the countries/rename them.
+        # 1) Load the BACI country mapping and build a code -> iso3 dict
         baci_country_mapping = pd.read_csv(
             os.path.join(self.config['datasets']['BACIFolderPath'], 'country_codes.csv')
         )
 
-        code_to_iso = baci_country_mapping[baci_country_mapping['country_iso3'].isin(countries)][
-            ['country_code', 'country_iso3']]
+        code_to_iso = baci_country_mapping[
+            baci_country_mapping['country_iso3'].isin(self.countries)
+        ][['country_code', 'country_iso3']]
+
         code_to_iso_dict = code_to_iso.set_index('country_code')['country_iso3'].to_dict()
 
-        baci_2010_filtered = baci_year_df[
-            (baci_year_df['i'].isin(code_to_iso_dict)) & (baci_year_df['j'].isin(code_to_iso_dict))].copy()
+        # 2) Filter relevant rows from the raw data
+        filtered_baci: pd.DataFrame = data[data['i'].isin(code_to_iso_dict) & data['j'].isin(code_to_iso_dict)].copy()
+        self.logger.info(
+            f"Filtered BACI data for {len(self.countries)} countries. "
+            f"Original data had {len(data)} rows, "
+            f"filtered data has {len(filtered_baci)} rows."
+        )
 
-        self.logger.info(f"Filtered BACI data for {len(countries)} countries. "
-                         f"Original data had {len(baci_year_df)} rows, "
-                         f"filtered data has {len(baci_2010_filtered)} rows.")
+        # 3) Create product category from 'k'
+        filtered_baci['ProductCode'] = filtered_baci['k'] // 10000
+        filtered_baci['Exporter'] = filtered_baci['i'].map(code_to_iso_dict).astype('category')
+        filtered_baci['Importer'] = filtered_baci['j'].map(code_to_iso_dict).astype('category')
 
-        baci_2010_filtered['ProductCode'] = baci_2010_filtered['k'] // 10000
-        baci_2010_filtered['Exporter'] = baci_2010_filtered['i'].map(code_to_iso_dict)
-        baci_2010_filtered['Importer'] = baci_2010_filtered['j'].map(code_to_iso_dict)
-
-        # Group by exporter, importer, product category and sum the values
-        group_aggregate = baci_2010_filtered.groupby(['Importer', 'Exporter', 'ProductCode']).agg(
-            {'v': 'sum', 'q': 'sum'}).reset_index()
-
+        # 4) Group by and aggregate
+        group_aggregate: pd.DataFrame = (
+            filtered_baci
+            .groupby(['Importer', 'Exporter', 'ProductCode'], observed=True)
+            .agg({'v': 'sum', 'q': 'sum'})
+            .reset_index()
+        )
         group_aggregate.rename(columns={'v': 'ValueThousandUSD', 'q': 'Volume'}, inplace=True)
 
-        if len(set(countries) - set(group_aggregate['Importer'].unique())) > 0:
-            self.logger.warning(f"Missing countries in the BACI data: {set(countries) - set(group_aggregate['Importer'].unique())}")
+        group_aggregate["ValueBillionUSD"] = group_aggregate['ValueThousandUSD'].astype('float64') / 1e6
+        group_aggregate.drop(columns=["ValueThousandUSD"], inplace=True)
+
+        # 5) Insert the 'Period' column as the FIRST column
+        #    We'll represent the entire year as a single yearly period
+        #    e.g. 2024 => Period('2024', freq='Y') -> covers 2024-01-01 to 2024-12-31
+        period_value = pd.Period(year, freq='Y')
+        group_aggregate.insert(0, 'Period', period_value)
 
         return group_aggregate
 

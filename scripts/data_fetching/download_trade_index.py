@@ -1,6 +1,6 @@
 import logging
 
-from src.data_sources.world_bank.tii.download_tii import download_and_unzip_trade_index
+from src.data_sources.raw_data_pipelines.deprecated.world_bank.tii.download_tii import download_and_unzip_trade_index
 from src.logging_config import setup_logging
 
 if __name__ == "__main__":
