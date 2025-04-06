@@ -5,6 +5,24 @@ from azure.core.exceptions import ResourceExistsError
 from azure.identity import DefaultAzureCredential
 from azure.storage.blob import BlobServiceClient, ContainerClient
 
+from src.core_utils import CoreUtils
+from tqdm import tqdm
+from tqdm.contrib.logging import logging_redirect_tqdm
+
+
+class ProgressReader:
+    def __init__(self, file_obj, progress):
+        self.file_obj = file_obj
+        self.progress = progress
+
+    def read(self, size=-1):
+        data = self.file_obj.read(size)
+        self.progress.update(len(data))
+        return data
+
+    def __getattr__(self, attr):
+        return getattr(self.file_obj, attr)
+
 
 class DataBlobWrapper:
     """
@@ -13,13 +31,14 @@ class DataBlobWrapper:
 
     :param container_name: The container to interact with. Defaults to 'data'.
     """
+    RAW_DATA_CONTAINER = "raw"
+    PROCESSED_DATA_CONTAINER = "processed-data"
 
     def __init__(
             self,
-            container_name: str = "data"
+            container_name: str = RAW_DATA_CONTAINER
     ):
-        config = configparser.ConfigParser()
-        config.read("appsettings.ini")
+        config = CoreUtils.load_ini_config()
 
         credential = DefaultAzureCredential()
 
@@ -54,8 +73,12 @@ class DataBlobWrapper:
             blob_name = os.path.basename(local_file_path)
 
         blob_client = self.container_client.get_blob_client(blob_name)
-        with open(local_file_path, "rb") as data:
-            blob_client.upload_blob(data, overwrite=overwrite)
+        file_size = os.path.getsize(local_file_path)
+        with logging_redirect_tqdm():
+            with tqdm(total=file_size, unit='B', unit_scale=True, desc=f"Uploading {blob_name}") as progress:
+                with open(local_file_path, "rb") as data:
+                    progress_file = ProgressReader(data, progress)
+                    blob_client.upload_blob(progress_file, overwrite=overwrite)
 
     def download_file(self, blob_name: str, download_file_path: str = None) -> None:
         """
@@ -70,9 +93,15 @@ class DataBlobWrapper:
             download_file_path = os.path.basename(blob_name)
 
         blob_client = self.container_client.get_blob_client(blob_name)
-        with open(download_file_path, "wb") as file_data:
-            stream = blob_client.download_blob()
-            file_data.write(stream.readall())
+        blob_props = blob_client.get_blob_properties()
+        total_size = blob_props.size
+        with logging_redirect_tqdm():
+            with tqdm(total=total_size, unit='B', unit_scale=True, desc=f"Downloading {blob_name}") as progress:
+                stream = blob_client.download_blob()
+                with open(download_file_path, "wb") as file_data:
+                    for chunk in stream.chunks():
+                        file_data.write(chunk)
+                        progress.update(len(chunk))
 
     def upload_folder(self, local_folder_path: str, overwrite: bool = True, blob_prefix: str = "") -> None:
         """
@@ -83,16 +112,24 @@ class DataBlobWrapper:
         :param overwrite: Determines whether to overwrite blobs if they already exist.
         :param blob_prefix: A prefix to prepend to all blob names, usually a path-like structure.
         """
+        total_size = 0
         for root, _, files in os.walk(local_folder_path):
             for file_name in files:
                 full_path = os.path.join(root, file_name)
-                relative_path = os.path.relpath(full_path, local_folder_path)
-                blob_name = relative_path.replace("\\", "/") # Support for Windows paths
-                blob_name = os.path.join(blob_prefix, blob_name)
+                total_size += os.path.getsize(full_path)
 
-                blob_client = self.container_client.get_blob_client(blob_name)
-                with open(full_path, "rb") as file_data:
-                    blob_client.upload_blob(file_data, overwrite=overwrite)
+        with logging_redirect_tqdm():
+            with tqdm(total=total_size, unit='B', unit_scale=True, desc="Uploading folder") as progress:
+                for root, _, files in os.walk(local_folder_path):
+                    for file_name in files:
+                        full_path = os.path.join(root, file_name)
+                        relative_path = os.path.relpath(full_path, local_folder_path)
+                        blob_name = relative_path.replace("\\", "/")
+                        blob_name = os.path.join(blob_prefix, blob_name)
+                        blob_client = self.container_client.get_blob_client(blob_name)
+                        with open(full_path, "rb") as data:
+                            progress_file = ProgressReader(data, progress)
+                            blob_client.upload_blob(progress_file, overwrite=overwrite)
 
     def download_folder(self, local_folder_path: str, blob_prefix: str = "") -> None:
         """
@@ -104,38 +141,16 @@ class DataBlobWrapper:
         :param blob_prefix: Filters which blobs are downloaded by matching this prefix in their name.
         :type blob_prefix: str, optional
         """
-        blobs = self.container_client.list_blobs(name_starts_with=blob_prefix)
-        for blob in blobs:
-            local_path = os.path.join(local_folder_path, blob.name)
-            os.makedirs(os.path.dirname(local_path), exist_ok=True)
-
-            blob_client = self.container_client.get_blob_client(blob.name)
-            with open(local_path, "wb") as file_data:
-                stream = blob_client.download_blob()
-                file_data.write(stream.readall())
-
-class DatasetUploader:
-    """
-    A utility class for uploading datasets to Azure Blob Storage.
-    """
-    def __init__(self):
-        self.blob_wrapper = DataBlobWrapper()
-        config = configparser.ConfigParser()
-        config.read("appsettings.ini")
-        self.config = config
-
-    def upload_cepii_dataset(self) -> None:
-        """
-        Uploads the Cepii dataset to Azure Blob Storage.
-        Currently contains the BACI data and the Gravity Data.
-        """
-
-        self.blob_wrapper.upload_folder(self.config["datasets"]["CepiFolderPath"], overwrite=False, blob_prefix="cepi/")
-
-    def download_cepii_dataset(self) -> None:
-        """
-        Downloads the Cepii dataset from Azure Blob Storage.
-        Currently contains the BACI data and the Gravity Data.
-        """
-
-        self.blob_wrapper.download_folder(self.config["datasets"]["DatasetRootPath"], blob_prefix="cepi/")
+        blobs = list(self.container_client.list_blobs(name_starts_with=blob_prefix))
+        total_size = sum(blob.size for blob in blobs if hasattr(blob, 'size') and blob.size is not None)
+        with logging_redirect_tqdm():
+            with tqdm(total=total_size, unit='B', unit_scale=True, desc="Downloading folder") as progress:
+                for blob in blobs:
+                    local_path = os.path.join(local_folder_path, blob.name)
+                    os.makedirs(os.path.dirname(local_path), exist_ok=True)
+                    blob_client = self.container_client.get_blob_client(blob.name)
+                    stream = blob_client.download_blob()
+                    with open(local_path, "wb") as file_data:
+                        for chunk in stream.chunks():
+                            file_data.write(chunk)
+                            progress.update(len(chunk))

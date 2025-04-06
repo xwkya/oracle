@@ -44,4 +44,4 @@ In order to access the standardized data directly from our storage, follow these
 - Open a dicussion to request a readonly account, with the name you want and an email adress to communicate your password. We will create a `yourname@fondation.one` Azure account and send you your login details via Email.
 - Download `Azure CLI` (Windows/Ubuntu process varies, so check the relevant installation on windows website for `Azure CLI`)
 - Log in to your Azure account in the CLI by typing `az login` if you have access to a browser, or `az login --use-device-code` to log in via another machine with a code.
-- Run scripts inside `scripts.data_fetching.xxx`
+- Run `python -m scripts.data.download_processed_tables` at the root of the project.

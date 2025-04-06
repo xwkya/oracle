@@ -7,6 +7,7 @@ import logging
 import os
 import sys
 
+from src.core_utils import CoreUtils
 from src.data_sources.data_source import DataSource
 from src.data_sources.raw_data_pipelines.contracts.source_to_pipeline import DataSourceToPipelineMatcher
 
@@ -15,12 +16,13 @@ from src.logging_config import setup_logging
 
 def parse_args():
     """Parses command-line arguments."""
+    config = CoreUtils.load_ini_config()
     parser = argparse.ArgumentParser(description='Raw data pipeline processing script')
     # --- Command Line Arguments ---
     parser.add_argument(
         '--output_base_dir',
         type=str,
-        default='ProcessedData/',  # Specific output dir for WDI
+        default=config['datasets']['ProcessedDataPath'],
         help='Directory to store output CSV files and reports'
     )
 
@@ -115,4 +117,4 @@ if __name__ == '__main__':
         logger.error(f"Functionality not implemented: {e}")
         sys.exit(1)
 
-    logger.info("WDI data processing script finished.")
+    logger.info("Data processing script finished.")

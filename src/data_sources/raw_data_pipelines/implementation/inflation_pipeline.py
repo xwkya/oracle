@@ -33,5 +33,6 @@ class InflationDataPipeline(DataPipeline):
         self.logger.info("Changing inflation index to datetime...")
         data["Period"] = pd.PeriodIndex(data["observation_date"], freq='Y')
         data.drop(columns=["observation_date"], inplace=True)
+        data.rename(columns={"CPIAUCNS": "Inflation"}, inplace=True)
 
         return data
