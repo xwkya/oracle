@@ -4,8 +4,7 @@ from typing import Optional, List
 
 import pandas as pd
 
-from src.data_sources.fred.inflation_fetcher import InflationFetcher
-from src.data_sources.fred.inflation_pipeline import InflationDataPipeline
+from src.data_sources.raw_data_pipelines.implementation.inflation_pipeline import InflationDataPipeline
 
 
 class InflationAdjuster:
@@ -22,9 +21,8 @@ class InflationAdjuster:
         """Loads CPI data using InflationFetcher or returns cached data."""
         if cls._cpi_data is None:
             print("INFO: Loading CPI data for the first time...")
-            cpi_data = InflationFetcher.load_inflation_data()
             pipeline = InflationDataPipeline()
-            cls._cpi_data = pipeline.clean_data(cpi_data)
+            cls._cpi_data = pipeline._process_data(pipeline.data_fetchers[0].fetch_data())
             # Ensure index is PeriodIndex for reliable year filtering
             cls._cpi_data.index = cls._cpi_data.index.to_period('M')
             print("INFO: CPI data loaded and cached.")
@@ -71,7 +69,7 @@ class InflationAdjuster:
         if not value_cols:
             raise ValueError("'value_cols' cannot be empty.")
 
-        # --- 1. Input Validation and Preparation ---
+        # --- Input Validation and Preparation ---
         df_adj = df.copy()  # Work on a copy to avoid modifying the original
 
         if date_col not in df_adj.columns:
@@ -87,13 +85,13 @@ class InflationAdjuster:
             print(
                 f"WARNING: Column '{date_col}' contained values that could not be parsed into dates (converted to NaT). Corresponding adjusted values will be NaN.")
 
-        # --- 2. Load and Prepare CPI Data ---
+        # --- Load and Prepare CPI Data ---
         cpi_df = InflationAdjuster._get_cpi_data()
         if 'CPIAUCNS' not in cpi_df.columns:
             raise ValueError("Loaded CPI data is missing the 'CPIAUCNS' column.")
 
 
-        # --- 3. Calculate Base CPI ---
+        # --- Calculate Base CPI ---
         # Filter CPI data for the base year and calculate the average
         try:
             # Ensure base_year is treated correctly against PeriodIndex
@@ -111,7 +109,7 @@ class InflationAdjuster:
         except Exception as e:
             raise ValueError(f"Could not determine average CPI for base year {base_year}: {e}")
 
-        # --- 4. Map Original CPI to Input DataFrame ---
+        # --- Map Original CPI to Input DataFrame ---
         # Create a key column in df_adj based on year-month to match CPI index
         # Use PeriodIndex ('M' for month) for robust matching
         df_adj['_YearMonth'] = df_adj[date_col].dt.to_period('M')
@@ -125,7 +123,7 @@ class InflationAdjuster:
             raise ValueError("Some dates in the input data were outside the CPI data range. "
                              "Adjustment cannot be performed for these dates.")
 
-        # --- 5. Calculate Adjusted Values ---
+        # --- Calculate Adjusted Values ---
         for col in value_cols:
             adj_col_name = f"{col}_adjusted_{base_year}"
             InflationAdjuster._logger.info(f"Calculating: {adj_col_name} = {col} * ({cpi_base_value:.3f} / _CPI_Original)")
@@ -133,7 +131,7 @@ class InflationAdjuster:
             # Perform calculation - result will be NaN if _CPI_Original is NaN or 0
             df_adj[adj_col_name] = df_adj[col] * (cpi_base_value / df_adj['_CPI_Original'])
 
-        # --- 6. Clean Up and Return ---
+        # --- Clean Up and Return ---
         df_adj = df_adj.drop(columns=['_YearMonth', '_CPI_Original'])
 
         return df_adj
