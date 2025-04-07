@@ -166,3 +166,4 @@ cython_debug/
 *.ipynb
 !getting_started.ipynb
 /artifacts
+*.tsv

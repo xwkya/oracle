@@ -1,4 +1,3 @@
-import configparser
 import os
 
 from azure.core.exceptions import ResourceExistsError
